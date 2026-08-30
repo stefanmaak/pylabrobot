@@ -51,11 +51,8 @@ class StripAspirate(Step):
   rows: WellMask = field(default_factory=WellMask.all_rows)
   in_wash: bool = False
 
-  def to_definition(self, settings: InstrumentSettings) -> str:
+  def to_definition(self) -> str:
     """Write the step as the text a protocol file stores.
-
-    Args:
-      settings: What the instrument has fitted.
 
     Returns:
       The ``|``-separated definition, with the selections only when the step stands alone.

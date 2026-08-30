@@ -40,14 +40,11 @@ class ShakeSoak(Step):
   shake: Shake = field(default_factory=Shake)
   soak: Soak = field(default_factory=Soak)
 
-  def to_definition(self, settings: InstrumentSettings) -> str:
+  def to_definition(self) -> str:
     """Write the step as the text a protocol file stores.
 
     ``enabled`` is not stored: a step read back from a protocol file is always enabled, and a wash
     supplies the flag from its own stage selection.
-
-    Args:
-      settings: What the instrument has fitted.
 
     Returns:
       The ``|``-separated definition.

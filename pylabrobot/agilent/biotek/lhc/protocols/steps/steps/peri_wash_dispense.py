@@ -52,13 +52,10 @@ class PeriWashDispense(Step):
   columns: WellMask = field(default_factory=WellMask.all_columns)
   rows: WellMask = field(default_factory=WellMask.all_rows)
 
-  def to_definition(self, settings: InstrumentSettings) -> str:
+  def to_definition(self) -> str:
     """Write the step as the text a protocol file stores.
 
     The pre-dispense volume is stored whether or not pre-dispensing is switched on.
-
-    Args:
-      settings: What the instrument has fitted.
 
     Returns:
       The ``|``-separated definition.

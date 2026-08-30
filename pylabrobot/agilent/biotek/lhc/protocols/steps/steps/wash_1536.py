@@ -59,14 +59,11 @@ class Wash1536(Step):
   shake_soak: ShakeSoak = field(default_factory=ShakeSoak)
   final_aspirate: ManifoldAspirate = field(default_factory=lambda: ManifoldAspirate(in_wash=True))
 
-  def to_definition(self, settings: InstrumentSettings) -> str:
+  def to_definition(self) -> str:
     """Write the step as the text a protocol file stores.
 
     The stage flags are not contiguous here: the volume and count used before washing sit between
     the first two.
-
-    Args:
-      settings: What the instrument has fitted.
 
     Returns:
       The definition, its five parts joined by ``#``.
@@ -80,10 +77,10 @@ class Wash1536(Step):
     return _PART_SEPARATOR.join(
       [
         head,
-        self.aspirate.to_definition(settings),
-        self.dispense.to_definition(settings),
-        self.shake_soak.to_definition(settings),
-        self.final_aspirate.to_definition(settings),
+        self.aspirate.to_definition(),
+        self.dispense.to_definition(),
+        self.shake_soak.to_definition(),
+        self.final_aspirate.to_definition(),
       ]
     )
 

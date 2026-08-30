@@ -25,14 +25,8 @@ class Step(abc.ABC):
   step_type: ClassVar[StepType]
 
   @abc.abstractmethod
-  def to_definition(self, settings: InstrumentSettings) -> str:
+  def to_definition(self) -> str:
     """Write the step as the text a protocol file stores.
-
-    Most step types ignore the settings; the peristaltic ones use them to decide whether the
-    instrument reads the random-access fields at all.
-
-    Args:
-      settings: What the instrument has fitted.
 
     Returns:
       The ``|``-separated definition, opening with the format marker and the step type.

@@ -60,14 +60,11 @@ class StripDispense(Step):
   is_bottom_wash: bool = False
   force_pre_dispense: bool = False
 
-  def to_definition(self, settings: InstrumentSettings) -> str:
+  def to_definition(self) -> str:
     """Write the step as the text a protocol file stores.
 
     The four flags describing the step's place in a wash are not stored; the owning wash sets them
     again when it uses the step.
-
-    Args:
-      settings: What the instrument has fitted.
 
     Returns:
       The ``|``-separated definition, with the selections only when the step stands alone.

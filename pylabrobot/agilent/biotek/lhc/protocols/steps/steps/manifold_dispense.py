@@ -50,14 +50,11 @@ class ManifoldDispense(Step):
   check_buffer: bool = True
   check_volume: bool = True
 
-  def to_definition(self, settings: InstrumentSettings) -> str:
+  def to_definition(self) -> str:
     """Write the step as the text a protocol file stores.
 
     The pre-dispense count is not stored by this step type, and neither validation flag is stored
     at all: a step read back from a protocol file checks both.
-
-    Args:
-      settings: What the instrument has fitted.
 
     Returns:
       The ``|``-separated definition.

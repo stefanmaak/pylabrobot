@@ -52,11 +52,8 @@ class SyringePrime(Step):
   submerge: Submerge = field(default_factory=Submerge)
   syringe_bottle: SyringeBottle = "A1"
 
-  def to_definition(self, settings: InstrumentSettings) -> str:
+  def to_definition(self) -> str:
     """Write the step as the text a protocol file stores.
-
-    Args:
-      settings: What the instrument has fitted.
 
     Returns:
       The ``|``-separated definition.

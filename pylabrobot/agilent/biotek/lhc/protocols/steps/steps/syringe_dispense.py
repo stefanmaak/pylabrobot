@@ -59,13 +59,10 @@ class SyringeDispense(Step):
   rows: WellMask = field(default_factory=WellMask.all_rows)
   selects_rows: bool = False
 
-  def to_definition(self, settings: InstrumentSettings) -> str:
+  def to_definition(self) -> str:
     """Write the step as the text a protocol file stores.
 
     The pre-dispense flow rate is not stored by this step type.
-
-    Args:
-      settings: What the instrument has fitted.
 
     Returns:
       The ``|``-separated definition, with the row selection only on an instrument that selects

@@ -62,15 +62,12 @@ class PeriPrime(Step):
   peri_pump: PeriPump | None = "Primary"
   random_access: RandomAccess = field(default_factory=RandomAccess)
 
-  def to_definition(self, settings: InstrumentSettings) -> str:
+  def to_definition(self) -> str:
     """Write the step as the text a protocol file stores.
 
-    The random-access fields are written only when the step uses random access and the
-    instrument reads them; a model that predates random access cannot parse a definition
-    carrying them.
-
-    Args:
-      settings: What the instrument has fitted.
+    The random-access fields are written only when the step uses random access. A model old
+    enough not to read them cannot run such a step at all, which is validation's to reject rather
+    than something to paper over here by dropping the fields.
 
     Returns:
       The ``|``-separated definition.
@@ -85,7 +82,7 @@ class PeriPrime(Step):
       f"{definition.FORMAT_MARKER}|{self.step_type.value}|{self.fixed_volume}|{self.volume}"
       f"|{self.duration}|{self.flow_rate}|{self.home_when_finished}|{cassette}|{pump}"
     )
-    if self.random_access.enabled and settings.supports_random_access_tail:
+    if self.random_access.enabled:
       text += f"|{self.random_access.to_definition()}"
     return text
 

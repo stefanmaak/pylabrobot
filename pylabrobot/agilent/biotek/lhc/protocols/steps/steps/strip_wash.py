@@ -57,11 +57,8 @@ class StripWash(Step):
   shake_soak: ShakeSoak = field(default_factory=ShakeSoak)
   final_aspirate: StripAspirate = field(default_factory=lambda: StripAspirate(in_wash=True))
 
-  def to_definition(self, settings: InstrumentSettings) -> str:
+  def to_definition(self) -> str:
     """Write the step as the text a protocol file stores.
-
-    Args:
-      settings: What the instrument has fitted.
 
     Returns:
       The definition, its six parts joined by ``#``.
@@ -74,11 +71,11 @@ class StripWash(Step):
     return _PART_SEPARATOR.join(
       [
         head,
-        self.bottom_wash.to_definition(settings),
-        self.aspirate.to_definition(settings),
-        self.dispense.to_definition(settings),
-        self.shake_soak.to_definition(settings),
-        self.final_aspirate.to_definition(settings),
+        self.bottom_wash.to_definition(),
+        self.aspirate.to_definition(),
+        self.dispense.to_definition(),
+        self.shake_soak.to_definition(),
+        self.final_aspirate.to_definition(),
       ]
     )
 

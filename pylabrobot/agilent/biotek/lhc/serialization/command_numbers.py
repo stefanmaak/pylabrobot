@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import enum
 
-from pylabrobot.agilent.biotek.lhc.devices.instrument_settings import InstrumentSettings
 from pylabrobot.agilent.biotek.lhc.enums.steps.step_type import StepType
 from pylabrobot.agilent.biotek.lhc.protocols.steps.step_interface import Step
-from pylabrobot.agilent.biotek.lhc.protocols.steps.steps.peri_dispense import PeriDispense
+from pylabrobot.agilent.biotek.lhc.protocols.steps.steps.peri_random_access_dispense import (
+  PeriRandomAccessDispense,
+)
 
 
 class CommandNumber(enum.IntEnum):
@@ -114,32 +115,34 @@ STEP_TYPE_TO_COMMAND: dict[StepType, CommandNumber] = {
 }
 """Which command runs each step type.
 
-A peristaltic dispense is the one step type whose command depends on how the step is configured;
-:func:`command_for_step` is what applies that.
+Two step classes share the peristaltic dispense step type; :data:`COMMAND_BY_STEP_CLASS` is what
+separates them.
 """
 
 
-def command_for_step(step: Step, settings: InstrumentSettings) -> CommandNumber:
-  """Which command runs a particular step.
+COMMAND_BY_STEP_CLASS: dict[type[Step], CommandNumber] = {
+  PeriRandomAccessDispense: CommandNumber.PERI_DISPENSE_RANDOM_ACCESS,
+}
+"""Which command runs a step class whose type alone does not decide it.
 
-  A peristaltic dispense at random access carries a different payload and is sent as a different
-  command. Every other step type is decided by its type alone.
+A peristaltic dispense at random access shares its step type with an ordinary one but carries a
+different payload and runs as a different command.
+"""
+
+
+def command_for_step(step: Step) -> CommandNumber:
+  """Which command runs a particular step.
 
   Args:
     step: The step to send.
-    settings: What the instrument has fitted, which decides whether it can run the step at random
-      access at all.
 
   Returns:
     The command number.
 
   Raises:
-    KeyError: If no command runs this step type.
+    KeyError: If no command runs this step.
   """
-  if (
-    isinstance(step, PeriDispense)
-    and step.random_access.enabled
-    and settings.supports_random_access_tail
-  ):
-    return CommandNumber.PERI_DISPENSE_RANDOM_ACCESS
+  by_class = COMMAND_BY_STEP_CLASS.get(type(step))
+  if by_class is not None:
+    return by_class
   return STEP_TYPE_TO_COMMAND[step.step_type]
