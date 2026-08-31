@@ -14,6 +14,11 @@ from __future__ import annotations
 
 import logging
 
+from pylabrobot.agilent.biotek.lhc.error_handling.errors import (
+  WRITE_FAILED,
+  for_info,
+  info_for,
+)
 from pylabrobot.io.ftdi import FTDI
 
 from .transport import BAUDRATE, DATA_BITS, DEFAULT_READ_TIMEOUT, STOP_BITS, Transport
@@ -108,11 +113,16 @@ class FtdiTransport(Transport):
       data: The bytes to write.
 
     Raises:
-      RuntimeError: If the bridge accepted fewer bytes than it was given.
+      LinkError: If the bridge accepted fewer bytes than it was given.
     """
     written = await self.io.write(data)
     if written is not None and written != len(data):
-      raise RuntimeError(f"[{self.port}] wrote {written} of {len(data)} bytes")
+      raise for_info(
+        info_for(
+          WRITE_FAILED,
+          operation=f"write to {self.port}: {written} of {len(data)} bytes accepted",
+        )
+      )
 
   async def read(self, num_bytes: int = 1) -> bytes:
     """Read whatever has already arrived, up to ``num_bytes`` bytes.
