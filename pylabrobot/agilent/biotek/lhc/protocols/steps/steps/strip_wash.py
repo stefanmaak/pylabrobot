@@ -97,7 +97,9 @@ class StripWash(Step):
     if len(parts) != _DEFINITION_PARTS:
       raise ValueError(f"{cls.step_type.name} expects {_DEFINITION_PARTS} parts, got {len(parts)}")
     head, bottom_wash, aspirate, dispense, shake_soak, final_aspirate = parts
-    own = definition.own_fields(head, cls.step_type, _DEFINITION_FIELDS, empty_ok=True)
+    own = definition.own_fields(
+      head, cls.step_type, _DEFINITION_FIELDS, empty_ok=True, defaults=cls.default_definition
+    )
     wash_format, cycles = own[0], own[1]
     if wash_format not in definition.WASH_FORMATS:
       raise ValueError(f"unknown wash format: {wash_format!r}")

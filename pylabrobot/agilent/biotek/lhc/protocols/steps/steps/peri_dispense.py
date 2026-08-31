@@ -116,7 +116,9 @@ class PeriDispense(Step):
       columns,
       rows,
       pump,
-    ) = definition.own_fields(text, cls.step_type, DEFINITION_FIELDS)
+    ) = definition.own_fields(
+      text, cls.step_type, DEFINITION_FIELDS, defaults=cls.default_definition
+    )
     if flow_rate not in PERI_FLOW_RATES:
       raise ValueError(f"unknown peristaltic flow rate: {flow_rate!r}")
     if int(cassette) != NO_CASSETTE_REQUIREMENT and int(cassette) not in BYTE_TO_CASSETTE_TYPE:

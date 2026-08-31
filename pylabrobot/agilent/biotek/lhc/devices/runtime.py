@@ -1,0 +1,96 @@
+"""What a device holds while it is running.
+
+Every model needs the same things to hand: the link to the instrument, what the instrument has
+fitted, which rules its firmware runs, which plate is on the carrier, and what the last validation
+pass reserved. They are gathered here so the shared functions in :mod:`.execution` and :mod:`.batch`
+can take one argument instead of eight, and so a device file stays a list of its own public methods.
+
+This is state, not behaviour: a device owns one of these and passes it to those functions. It is
+deliberately not a base class -- nothing inherits from it, and a model that needs a fact the others
+do not simply keeps that fact itself.
+"""
+
+from __future__ import annotations
+
+import asyncio
+from dataclasses import dataclass, field
+
+from pylabrobot.agilent.biotek.lhc.comm.link import Link
+from pylabrobot.agilent.biotek.lhc.devices.build_rules import COMMON, BuildRules
+from pylabrobot.agilent.biotek.lhc.devices.instrument_settings import InstrumentSettings
+from pylabrobot.agilent.biotek.lhc.enums.instrument.instrument_family import InstrumentFamily
+from pylabrobot.agilent.biotek.lhc.enums.motion.carrier_type import CarrierType
+from pylabrobot.agilent.biotek.lhc.enums.plates.plate_restriction import PlateRestriction
+from pylabrobot.agilent.biotek.lhc.enums.plates.plate_type import PlateType
+from pylabrobot.agilent.biotek.lhc.error_handling import ErrorKind, fail
+from pylabrobot.agilent.biotek.lhc.plate_geometry.plate_record import PlateRecord
+from pylabrobot.agilent.biotek.lhc.protocols.validation.reservations import Reservations
+
+
+@dataclass
+class Runtime:
+  """Everything shared behaviour needs from the device that owns it.
+
+  Attributes:
+    link: The connection to the instrument.
+    family: Which model this is, which the instrument does not report and so is declared.
+    rules: Which validation rules this model's firmware runs.
+    settings: What the instrument has fitted. Read from the instrument by ``setup()``, and the
+      record every step is encoded against.
+    reconciles_cassette_head: Whether opening a batch reconciles the peristaltic dispense head as
+      well as the cassettes. Only one model carries a head that can be set.
+    plate: The plate on the carrier, or None while none has been set.
+    reservations: What the last validation pass claimed of the pumps, which is what opening a batch
+      makes the hardware match. Empty until a pass has run.
+    plate_restriction: Which plates the instrument accepts, once it has been asked.
+    carrier_type: Which carrier is fitted, once the instrument has been asked.
+    in_batch: Whether a batch is open, which is what makes the batch context re-entrant.
+    port: Held for as long as a batch is open, so two callers cannot interleave runs on one
+      instrument.
+  """
+
+  link: Link
+  family: InstrumentFamily
+  rules: BuildRules = COMMON
+  settings: InstrumentSettings = field(default_factory=InstrumentSettings)
+  reconciles_cassette_head: bool = False
+  plate: PlateRecord | None = None
+  reservations: Reservations = field(default_factory=Reservations)
+  plate_restriction: PlateRestriction | None = None
+  carrier_type: CarrierType | None = None
+  in_batch: bool = False
+  port: asyncio.Lock = field(default_factory=asyncio.Lock)
+
+  @property
+  def plate_record(self) -> PlateRecord:
+    """The plate on the carrier.
+
+    Raises:
+      RejectedError: If no plate has been set. Nothing can be encoded or checked without one:
+        every step's offsets are measured from the plate's own heights.
+    """
+    if self.plate is None:
+      raise fail(
+        ErrorKind.REJECTED,
+        "no plate is on the carrier; set one before running anything",
+        operation="plate",
+      )
+    return self.plate
+
+  @property
+  def plate_type(self) -> PlateType:
+    """Which format the instrument is told is on the carrier.
+
+    Raises:
+      RejectedError: If no plate has been set.
+    """
+    return self.plate_record.plate_type
+
+  def forget_instrument_facts(self) -> None:
+    """Forget what was read off the instrument about the plate it will accept.
+
+    Called when the plate changes, so the next check asks again rather than measuring a new plate
+    against an answer given for the old one.
+    """
+    self.plate_restriction = None
+    self.carrier_type = None

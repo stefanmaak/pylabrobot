@@ -98,7 +98,10 @@ class ManifoldWash(Step):
       raise ValueError(f"{cls.step_type.name} expects {_DEFINITION_PARTS} parts, got {len(parts)}")
     head, bottom_wash, aspirate, dispense, shake_soak, final_aspirate = parts
     wash_format, sectors, cycles, *stages = definition.own_fields(
-      head, cls.step_type, _DEFINITION_FIELDS
+      head,
+      cls.step_type,
+      _DEFINITION_FIELDS,
+      defaults=cls.default_definition,
     )
     if wash_format not in definition.WASH_FORMATS:
       raise ValueError(f"unknown wash format: {wash_format!r}")

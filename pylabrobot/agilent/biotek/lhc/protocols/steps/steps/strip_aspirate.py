@@ -82,7 +82,9 @@ class StripAspirate(Step):
       ValueError: If the definition does not have this step type's layout, or names a travel rate
         that does not exist.
     """
-    own = definition.own_fields_at_least(text, cls.step_type, _DEFINITION_FIELDS, empty_ok=True)
+    own = definition.own_fields_at_least(
+      text, cls.step_type, _DEFINITION_FIELDS, empty_ok=True, defaults=cls.default_definition
+    )
     travel_rate, delay, z, x, y, pattern, secondary_z, secondary_x, secondary_y = own[:9]
     masks = own[9:]
     if travel_rate not in definition.TRAVEL_RATES:

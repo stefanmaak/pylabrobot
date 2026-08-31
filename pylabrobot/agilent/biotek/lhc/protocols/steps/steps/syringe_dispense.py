@@ -95,7 +95,9 @@ class SyringeDispense(Step):
       ValueError: If the definition does not have this step type's layout, or names a syringe or
         bottle that does not exist.
     """
-    own = definition.own_fields_at_least(text, cls.step_type, _DEFINITION_FIELDS)
+    own = definition.own_fields_at_least(
+      text, cls.step_type, _DEFINITION_FIELDS, defaults=cls.default_definition
+    )
     (
       syringe,
       volume,

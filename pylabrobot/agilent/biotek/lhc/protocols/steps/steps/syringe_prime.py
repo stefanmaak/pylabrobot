@@ -89,7 +89,9 @@ class SyringePrime(Step):
       submerge,
       duration,
       bottle,
-    ) = definition.own_fields(text, cls.step_type, _DEFINITION_FIELDS)
+    ) = definition.own_fields(
+      text, cls.step_type, _DEFINITION_FIELDS, defaults=cls.default_definition
+    )
     if int(syringe) not in _BYTE_TO_SYRINGE:
       raise ValueError(f"unknown syringe: {syringe!r}")
     if int(bottle) not in _BYTE_TO_SYRINGE_BOTTLE:

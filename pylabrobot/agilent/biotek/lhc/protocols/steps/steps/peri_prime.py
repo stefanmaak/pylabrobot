@@ -100,7 +100,9 @@ class PeriPrime(Step):
       ValueError: If the definition does not have this step type's layout, or names a flow rate,
         cassette or pump that does not exist.
     """
-    own = definition.own_fields_at_least(text, cls.step_type, _DEFINITION_FIELDS)
+    own = definition.own_fields_at_least(
+      text, cls.step_type, _DEFINITION_FIELDS, defaults=cls.default_definition
+    )
     fixed_volume, volume, duration, flow_rate, home, cassette, pump = own[:7]
     tail = own[7:]
     if flow_rate not in _PERI_FLOW_RATES:

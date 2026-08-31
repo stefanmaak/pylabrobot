@@ -94,7 +94,9 @@ class PeriWashDispense(Step):
       pre_count,
       columns,
       rows,
-    ) = definition.own_fields(text, cls.step_type, _DEFINITION_FIELDS)
+    ) = definition.own_fields(
+      text, cls.step_type, _DEFINITION_FIELDS, defaults=cls.default_definition
+    )
     if int(pump) != _NO_PUMP and int(pump) not in _BYTE_TO_PERI_PUMP:
       raise ValueError(f"unknown peristaltic pump: {pump!r}")
     return cls(

@@ -23,10 +23,10 @@ from pylabrobot.agilent.biotek.lhc.enums.steps.step_type import StepType
 from pylabrobot.agilent.biotek.lhc.enums.steps.syringe_bottle import SyringeBottle
 from pylabrobot.agilent.biotek.lhc.plate_geometry.plate_record import PlateRecord
 from pylabrobot.agilent.biotek.lhc.protocols.steps.step_interface import Step
+from pylabrobot.agilent.biotek.lhc.protocols.steps.steps.manifold_aspirate import ManifoldAspirate
 from pylabrobot.agilent.biotek.lhc.protocols.steps.steps.manifold_auto_clean import (
   ManifoldAutoClean,
 )
-from pylabrobot.agilent.biotek.lhc.protocols.steps.steps.manifold_aspirate import ManifoldAspirate
 from pylabrobot.agilent.biotek.lhc.protocols.steps.steps.manifold_dispense import ManifoldDispense
 from pylabrobot.agilent.biotek.lhc.protocols.steps.steps.manifold_prime import ManifoldPrime
 from pylabrobot.agilent.biotek.lhc.protocols.steps.steps.manifold_wash import ManifoldWash
@@ -107,6 +107,49 @@ class Commitments:
   bottle_a: SyringeBottle | None = None
   bottle_b: SyringeBottle | None = None
   bottle_both: SyringeBottle | None = None
+
+
+def available_step_types(settings: InstrumentSettings) -> list[StepType]:
+  """Which step types the fitted hardware can carry out at all.
+
+  This is the hardware half of what a device offers: a step type whose hardware is not fitted can
+  never run, whatever plate is on the carrier or which firmware is installed. Everything that
+  depends on the plate stays with the checks above, and the firmware restriction belongs to the
+  model, so a device narrows this by its own palette and its own firmware variant.
+
+  Args:
+    settings: What the instrument has fitted.
+
+  Returns:
+    The step types, in the order they are numbered.
+  """
+  washes = settings.washer_manifold is not WasherManifold.NOT_INSTALLED
+  syringes = (
+    settings.syringe_box is not SyringeBoxType.NOT_INSTALLED
+    and settings.syringe_manifold is not SyringeManifold.NOT_INSTALLED
+  )
+  strips = settings.strip_washer_manifold is not StripWasherManifold.NOT_INSTALLED
+  fitted: dict[StepType, bool] = {
+    StepType.PERI_DISPENSE: settings.peri_pump,
+    StepType.PERI_PRIME: settings.peri_pump,
+    StepType.PERI_PURGE: settings.peri_pump,
+    StepType.SYRINGE_DISPENSE: syringes,
+    StepType.SYRINGE_PRIME: syringes,
+    StepType.MANIFOLD_WASH: washes,
+    StepType.MANIFOLD_ASPIRATE: washes,
+    StepType.MANIFOLD_DISPENSE: washes,
+    StepType.MANIFOLD_PRIME: washes,
+    StepType.MANIFOLD_AUTO_CLEAN: washes and settings.ultrasonic,
+    StepType.SHAKE_SOAK: True,
+    StepType.WASH_1536: washes and syringes,
+    StepType.STRIP_WASH: strips,
+    StepType.STRIP_ASPIRATE: strips,
+    StepType.STRIP_DISPENSE: strips,
+    StepType.STRIP_PRIME: strips,
+    StepType.PERI_WASH_ASPIRATE: settings.peri_wash_enabled,
+    StepType.PERI_WASH_DISPENSE: settings.peri_wash_enabled,
+  }
+  return [step_type for step_type, available in fitted.items() if available]
 
 
 def check_configuration(

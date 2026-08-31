@@ -47,6 +47,20 @@ class Step(abc.ABC):
       ValueError: If the definition does not have this type's layout.
     """
 
+  @classmethod
+  def default_definition(cls) -> str:
+    """The definition text of this type with every field at its default.
+
+    Read when a definition stops short of the layout's full length: the fields it does not carry
+    are taken from here, which keeps the defaults in one place -- the dataclass -- rather than
+    repeating them as text.
+
+    Returns:
+      The definition of a default step, up to the first sub-step. Only the type's own fields are
+      ever filled in this way; a composite's sub-steps carry their own.
+    """
+    return cls().to_definition().split("#")[0]
+
   @abc.abstractmethod
   def to_bytes(self, settings: InstrumentSettings) -> bytes:
     """Encode the step as the payload of the command that runs it.

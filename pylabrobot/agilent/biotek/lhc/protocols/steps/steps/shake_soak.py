@@ -75,7 +75,9 @@ class ShakeSoak(Step):
       intensity,
       soak_enabled,
       soak_duration,
-    ) = definition.own_fields(text, cls.step_type, _DEFINITION_FIELDS)
+    ) = definition.own_fields(
+      text, cls.step_type, _DEFINITION_FIELDS, defaults=cls.default_definition
+    )
     return cls(
       move_carrier_home=definition.flag(move_carrier_home),
       shake=Shake.from_definition(shake_enabled, shake_duration, axis, intensity),

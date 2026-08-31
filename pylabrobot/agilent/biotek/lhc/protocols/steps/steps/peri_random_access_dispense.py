@@ -88,7 +88,9 @@ class PeriRandomAccessDispense(PeriDispense):
       ValueError: If the definition does not have this step type's layout, or names a flow rate,
         cassette or pump that does not exist.
     """
-    own = definition.own_fields(text, cls.step_type, DEFINITION_FIELDS + _TAIL_FIELDS)
+    own = definition.own_fields(
+      text, cls.step_type, DEFINITION_FIELDS + _TAIL_FIELDS, defaults=cls.default_definition
+    )
     (
       volume,
       flow_rate,

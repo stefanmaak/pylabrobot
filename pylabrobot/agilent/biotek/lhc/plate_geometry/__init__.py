@@ -9,5 +9,19 @@ from pylabrobot.agilent.biotek.lhc.plate_geometry.plates import (
   find,
   plates_for,
 )
+from pylabrobot.agilent.biotek.lhc.plate_geometry.resolution import (
+  DEEP_WELL_DEPTH,
+  SELECTION_ONLY,
+  resolve,
+)
 
-__all__ = ["DISPENSER_PLATES", "WASHER_PLATES", "PlateRecord", "find", "plates_for"]
+__all__ = [
+  "DEEP_WELL_DEPTH",
+  "DISPENSER_PLATES",
+  "SELECTION_ONLY",
+  "WASHER_PLATES",
+  "PlateRecord",
+  "find",
+  "plates_for",
+  "resolve",
+]

@@ -95,7 +95,9 @@ class StripDispense(Step):
     Raises:
       ValueError: If the definition does not have this step type's layout.
     """
-    own = definition.own_fields_at_least(text, cls.step_type, _DEFINITION_FIELDS, empty_ok=True)
+    own = definition.own_fields_at_least(
+      text, cls.step_type, _DEFINITION_FIELDS, empty_ok=True, defaults=cls.default_definition
+    )
     (
       volume,
       flow_rate,

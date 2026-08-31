@@ -62,7 +62,11 @@ class StripPrime(Step):
       ValueError: If the definition does not have this step type's layout.
     """
     volume, flow_rate, cycles, submerge, duration = definition.own_fields(
-      text, cls.step_type, _DEFINITION_FIELDS, empty_ok=True
+      text,
+      cls.step_type,
+      _DEFINITION_FIELDS,
+      empty_ok=True,
+      defaults=cls.default_definition,
     )
     return cls(
       volume=definition.number(volume, 16),

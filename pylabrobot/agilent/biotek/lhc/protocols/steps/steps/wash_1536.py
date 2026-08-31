@@ -111,7 +111,9 @@ class Wash1536(Step):
       between,
       final,
       shake_after,
-    ) = definition.own_fields(head, cls.step_type, _DEFINITION_FIELDS)
+    ) = definition.own_fields(
+      head, cls.step_type, _DEFINITION_FIELDS, defaults=cls.default_definition
+    )
     if wash_format not in definition.WASH_FORMATS:
       raise ValueError(f"unknown wash format: {wash_format!r}")
     return cls(

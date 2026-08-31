@@ -12,10 +12,13 @@ on it -- and passes them in, so every rule is testable without hardware.
 
 from __future__ import annotations
 
-from pylabrobot.agilent.biotek.lhc.devices.build_rules import BASECODE_STEP_TYPES, BuildRules
-from pylabrobot.agilent.biotek.lhc.devices.build_rules import basecode_for
-from pylabrobot.agilent.biotek.lhc.enums.instrument.basecode import Basecode
+from pylabrobot.agilent.biotek.lhc.devices.build_rules import (
+  BASECODE_STEP_TYPES,
+  BuildRules,
+  basecode_for,
+)
 from pylabrobot.agilent.biotek.lhc.devices.instrument_settings import InstrumentSettings
+from pylabrobot.agilent.biotek.lhc.enums.instrument.basecode import Basecode
 from pylabrobot.agilent.biotek.lhc.enums.motion.carrier_type import CarrierType
 from pylabrobot.agilent.biotek.lhc.enums.plates.plate_restriction import PlateRestriction
 from pylabrobot.agilent.biotek.lhc.enums.plates.plate_type import PlateType

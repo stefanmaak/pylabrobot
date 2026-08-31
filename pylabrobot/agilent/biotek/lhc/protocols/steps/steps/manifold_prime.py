@@ -73,7 +73,9 @@ class ManifoldPrime(Step):
       low_flow_volume,
       submerge,
       duration,
-    ) = definition.own_fields(text, cls.step_type, _DEFINITION_FIELDS)
+    ) = definition.own_fields(
+      text, cls.step_type, _DEFINITION_FIELDS, defaults=cls.default_definition
+    )
     if buffer not in definition.BUFFERS:
       raise ValueError(f"unknown buffer: {buffer!r}")
     return cls(

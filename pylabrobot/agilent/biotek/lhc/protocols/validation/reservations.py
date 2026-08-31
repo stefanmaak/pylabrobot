@@ -199,10 +199,7 @@ def uses_random_access(step: Step) -> bool:
 def check_cassette_head(
   step: PeriRandomAccessDispense, plate: PlateRecord, absent: frozenset[int]
 ) -> Rejection | None:
-  """Check a dispense head against the plate it would dispense into.
-
-  A head that feeds several tubes at once cannot serve more than 24 wells, and a single-tube head
-  cannot serve more than 384.
+  """Check the dispense head a step names against the plate it would dispense into.
 
   Args:
     step: The random-access dispense.
@@ -212,12 +209,32 @@ def check_cassette_head(
   Returns:
     A rejection, or None.
   """
+  return check_head_fits(step.cassette_head, plate, absent)
+
+
+def check_head_fits(
+  head: CassetteHead | None, plate: PlateRecord, absent: frozenset[int]
+) -> Rejection | None:
+  """Check a dispense head against the plate it would dispense into.
+
+  A head that feeds several tubes at once cannot serve more than 24 wells, and a single-tube head
+  cannot serve more than 384. Opening a batch checks the reserved head this way, having no step to
+  hand.
+
+  Args:
+    head: The head to check, or None for the single-tube head that is used when none is named.
+    plate: The plate the protocol runs on.
+    absent: Rules this model does not have.
+
+  Returns:
+    A rejection, or None.
+  """
   if HEAD_PLATE_MISMATCH in absent:
     return None
-  head = step.cassette_head if step.cassette_head is not None else "1 tube to 1 well"
-  if head in _MULTI_TUBE_HEADS and plate.wells > 24:
+  fitted = head if head is not None else "1 tube to 1 well"
+  if fitted in _MULTI_TUBE_HEADS and plate.wells > 24:
     return Rejection(HEAD_PLATE_MISMATCH)
-  if head == "1 tube to 1 well" and plate.wells > 384:
+  if fitted == "1 tube to 1 well" and plate.wells > 384:
     return Rejection(HEAD_PLATE_MISMATCH)
   return None
 

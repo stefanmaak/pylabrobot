@@ -59,7 +59,9 @@ class ManifoldAutoClean(Step):
       ValueError: If the definition does not have this step type's layout, or names a buffer that
         does not exist.
     """
-    buffer, duration = definition.own_fields(text, cls.step_type, _DEFINITION_FIELDS)
+    buffer, duration = definition.own_fields(
+      text, cls.step_type, _DEFINITION_FIELDS, defaults=cls.default_definition
+    )
     if buffer not in definition.BUFFERS:
       raise ValueError(f"unknown buffer: {buffer!r}")
     return cls(buffer=definition.BUFFERS[buffer], duration=parse_hours_minutes(duration))
