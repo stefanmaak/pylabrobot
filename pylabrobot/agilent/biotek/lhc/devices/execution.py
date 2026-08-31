@@ -52,9 +52,6 @@ READY_TIMEOUT = 15.0
 STEP_TIMEOUT = 3600.0
 """How long to wait for a step to finish, in seconds. A wash with a long soak is minutes of it."""
 
-_SETTLE = 0.5
-"""How long to wait after a step is accepted before polling, in seconds."""
-
 _RUNNING = (RunState.BUSY, RunState.PAUSED)
 
 
@@ -145,7 +142,7 @@ async def run_step(
   command = RunStep(command_for_step(step), plate_type, step.to_bytes(runtime.settings))
   await runtime.link.request(command, operation=step.step_type.name)
   logger.info("running %s on %s", step.step_type.name, runtime.link.name)
-  await asyncio.sleep(_SETTLE)
+  await asyncio.sleep(runtime.settle)
   await _wait_for_step(runtime, step, timeout, interval)
 
 
@@ -323,12 +320,14 @@ async def _optional_byte(runtime: Runtime, number: CommandNumber) -> int | None:
     number: Which query to send.
 
   Returns:
-    The byte, or None when the instrument would not answer.
+    The byte, or None when the instrument would not answer -- either refusing the query, or
+    acknowledging it and sending no value back, which older firmware does for a query it does
+    not implement.
   """
   command = ByteQuery(number)
   try:
     return command.parse(await runtime.link.request(command, operation=number.name))
-  except BiotekError as error:
+  except (BiotekError, ValueError) as error:
     logger.debug("%s does not answer %s: %s", runtime.link.name, number.name, error)
     return None
 

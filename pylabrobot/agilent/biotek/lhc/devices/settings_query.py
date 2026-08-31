@@ -273,11 +273,13 @@ async def _optional_byte(link: Link, number: CommandNumber) -> int | None:
     number: Which option to read.
 
   Returns:
-    The byte, or None when the instrument would not answer.
+    The byte, or None when the instrument would not answer -- either refusing the query, or
+    acknowledging it and sending no value back, which older firmware does for a query it does
+    not implement.
   """
   try:
     return await _byte(link, number)
-  except BiotekError as error:
+  except (BiotekError, ValueError) as error:
     logger.debug("%s does not answer %s: %s", link.name, number.name, error)
     return None
 

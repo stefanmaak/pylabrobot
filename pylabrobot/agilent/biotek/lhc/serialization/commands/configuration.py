@@ -31,7 +31,14 @@ class ByteQuery(Command):
 
     Returns:
       The byte.
+
+    Raises:
+      ValueError: If the reply carried no answer. An instrument that acknowledges a query it does
+        not implement answers with its status and nothing else, so this is how "it would not say"
+        reaches a caller that can carry on without knowing.
     """
+    if not answer:
+      raise ValueError(f"command {self.number} was answered with no value")
     return answer[0]
 
 
@@ -46,8 +53,11 @@ class FlagQuery(ByteQuery):
 
     Returns:
       Whether the byte is set.
+
+    Raises:
+      ValueError: If the reply carried no answer.
     """
-    return bool(answer[0])
+    return bool(self.parse(answer))
 
 
 class SelectorQuery(Command):
@@ -70,7 +80,12 @@ class SelectorQuery(Command):
 
     Returns:
       The byte.
+
+    Raises:
+      ValueError: If the reply carried no answer.
     """
+    if not answer:
+      raise ValueError(f"command {self.number} was answered with no value")
     return answer[0]
 
   def parse_flag(self, answer: bytes) -> bool:
@@ -81,8 +96,11 @@ class SelectorQuery(Command):
 
     Returns:
       Whether the byte is set.
+
+    Raises:
+      ValueError: If the reply carried no answer.
     """
-    return bool(answer[0])
+    return bool(self.parse(answer))
 
 
 class ByteWrite(Command):

@@ -9,7 +9,7 @@ from typing import ClassVar
 from pylabrobot.agilent.biotek.lhc.comm.link import Link
 from pylabrobot.agilent.biotek.lhc.comm.transport import DEFAULT_READ_TIMEOUT, Transport
 from pylabrobot.agilent.biotek.lhc.devices import batch as batching
-from pylabrobot.agilent.biotek.lhc.devices import execution, settings_query
+from pylabrobot.agilent.biotek.lhc.devices import execution, settings_document, settings_query
 from pylabrobot.agilent.biotek.lhc.devices.build_rules import rules_for
 from pylabrobot.agilent.biotek.lhc.devices.components.peristaltic_dispenser import (
   PeristalticDispenser,
@@ -18,7 +18,13 @@ from pylabrobot.agilent.biotek.lhc.devices.components.syringe_dispenser import S
 from pylabrobot.agilent.biotek.lhc.devices.components.washer import PlateWasher
 from pylabrobot.agilent.biotek.lhc.devices.instrument_settings import InstrumentSettings
 from pylabrobot.agilent.biotek.lhc.devices.runtime import Runtime
+from pylabrobot.agilent.biotek.lhc.devices.settings_comparison import (
+  SettingsComparison,
+  compare,
+)
 from pylabrobot.agilent.biotek.lhc.enums.instrument.instrument_family import InstrumentFamily
+from pylabrobot.agilent.biotek.lhc.enums.motion.motor import Motor
+from pylabrobot.agilent.biotek.lhc.enums.motion.motor_home_type import MotorHomeType
 from pylabrobot.agilent.biotek.lhc.enums.plates.plate_type import PlateType
 from pylabrobot.agilent.biotek.lhc.enums.steps.shake_axis import ShakeAxis
 from pylabrobot.agilent.biotek.lhc.enums.steps.shake_intensity import ShakeIntensity
@@ -31,7 +37,11 @@ from pylabrobot.agilent.biotek.lhc.protocols.steps.step_parts.groups import Shak
 from pylabrobot.agilent.biotek.lhc.protocols.steps.steps.shake_soak import ShakeSoak
 from pylabrobot.agilent.biotek.lhc.protocols.validation.configuration import available_step_types
 from pylabrobot.agilent.biotek.lhc.protocols.validation.report import ValidationReport
-from pylabrobot.agilent.biotek.lhc.serialization.commands.diagnostics import RunSelfCheck
+from pylabrobot.agilent.biotek.lhc.serialization.commands.diagnostics import (
+  HomeVerifyMotors,
+  ResetInstrument,
+  RunSelfCheck,
+)
 from pylabrobot.agilent.biotek.lhc.serialization.commands.queries import (
   FirmwareVersion,
   GetFirmwareVersion,
@@ -128,6 +138,20 @@ class EL406:
     return self._runtime.settings
 
   @property
+  def settle(self) -> float:
+    """How long to wait after the instrument accepts a step before polling it, in seconds.
+
+    The first poll of a step that has only just started can still report the instrument idle, so
+    this is what stops a step being called finished before it began. It is paid once per step, so a
+    long protocol on a quick instrument is where lowering it is worth something.
+    """
+    return self._runtime.settle
+
+  @settle.setter
+  def settle(self, seconds: float) -> None:
+    self._runtime.settle = seconds
+
+  @property
   def plate(self) -> PlateRecord | None:
     """The plate the instrument is set to work, or None while none has been set."""
     return self._runtime.plate
@@ -185,11 +209,42 @@ class EL406:
     """Which operations this instrument can carry out as it is fitted.
 
     Returns:
-      The step types, in the order they are numbered. A type this model is never built to run is
+      The step types, in the order this model offers them, which is the order its palette above
+      lists rather than the order they are numbered. A type this model is never built to run is
       absent whatever is fitted, and so is one whose hardware is missing.
     """
     fitted = set(available_step_types(self._runtime.settings))
     return [step_type for step_type in PALETTE if step_type in fitted]
+
+  def compare_settings(self, protocol: Protocol | InstrumentSettings) -> SettingsComparison:
+    """Compare the options a protocol was written for with the ones this instrument reports.
+
+    Nothing calls this on its own: a protocol runs against the instrument as it actually is, and
+    whether it can run is what :meth:`can_run` answers. This is for the rarer question of whether a
+    protocol was written for a differently equipped machine, which is worth asking before running
+    one that came from elsewhere.
+
+    Args:
+      protocol: The protocol, whose fitted-options document is read, or a settings record to
+        compare directly.
+
+    Returns:
+      The comparison, truthy when the protocol was written for an instrument equipped like this
+      one, and printing as the list of options that differ.
+
+    Raises:
+      ValueError: If the protocol carries no fitted-options document, which is how the oldest
+        releases wrote a file. There is nothing to compare against in that case.
+    """
+    if isinstance(protocol, InstrumentSettings):
+      return compare(protocol, self._runtime.settings)
+    if not protocol.instrument_settings_xml.strip():
+      raise ValueError(
+        f"{protocol.protocol_name or 'the protocol'} carries no fitted-options document, so there "
+        "is nothing to compare against what the instrument reports"
+      )
+    declared = settings_document.from_xml(protocol.instrument_settings_xml)
+    return compare(declared, self._runtime.settings)
 
   async def can_run(self, protocol: Protocol | list[Step]) -> ValidationReport:
     """Check whether a protocol can run on the instrument as it is.
@@ -338,6 +393,33 @@ class EL406:
       BiotekError: If the check does not pass, reporting what failed.
     """
     await self._runtime.link.request(RunSelfCheck(), operation="self check")
+
+  async def reset(self) -> None:
+    """Reset the instrument, and wait for it to come back.
+
+    Returns it to the state it is in after power-on: motion stopped, motors dereferenced. What is
+    fitted does not change, so the record :meth:`setup` read still stands.
+
+    Raises:
+      BiotekError: If the instrument does not come back.
+    """
+    await self._runtime.link.request(ResetInstrument(), operation="reset")
+
+  async def home(self, motor: Motor | None = None) -> None:
+    """Drive the transport to its home position and confirm it arrived.
+
+    Args:
+      motor: One motor to home, or None to home the carrier and the heads together. A motor this
+        instrument does not have is refused by the instrument rather than here.
+
+    Raises:
+      BiotekError: If a motor does not reach its home position.
+    """
+    home_type = MotorHomeType.HOME_MOTOR if motor is not None else MotorHomeType.HOME_XYZ_MOTORS
+    await self._runtime.link.request(
+      HomeVerifyMotors(int(home_type), int(motor) if motor is not None else 0),
+      operation="home",
+    )
 
   async def abort(self) -> None:
     """Stop the running step.

@@ -44,6 +44,9 @@ class Runtime:
       makes the hardware match. Empty until a pass has run.
     plate_restriction: Which plates the instrument accepts, once it has been asked.
     carrier_type: Which carrier is fitted, once the instrument has been asked.
+    settle: How long to wait after the instrument accepts a step before asking whether it has
+      finished, in seconds. The first poll of a step that has only just started can still report the
+      instrument idle, so this is what stops a step being called finished before it began.
     in_batch: Whether a batch is open, which is what makes the batch context re-entrant.
     port: Held for as long as a batch is open, so two callers cannot interleave runs on one
       instrument.
@@ -58,6 +61,7 @@ class Runtime:
   reservations: Reservations = field(default_factory=Reservations)
   plate_restriction: PlateRestriction | None = None
   carrier_type: CarrierType | None = None
+  settle: float = 0.5
   in_batch: bool = False
   port: asyncio.Lock = field(default_factory=asyncio.Lock)
 

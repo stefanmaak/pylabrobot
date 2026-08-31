@@ -89,8 +89,19 @@ def from_xml(document: str) -> Protocol:
     raise ValueError(f"not a protocol document: {error}") from error
 
   def text(tag: str, default: str = "") -> str:
+    """One element's text, with the line endings a protocol file stores.
+
+    Args:
+      tag: Which element to read.
+      default: What an absent or empty element means.
+
+    Returns:
+      The text.
+    """
     element = root.find(tag)
-    return default if element is None or element.text is None else element.text
+    if element is None or element.text is None:
+      return default
+    return _with_carriage_returns(element.text)
 
   protocol = Protocol(
     instrument_settings_xml=text("InstrumentSettingsXML"),
@@ -122,6 +133,24 @@ def from_xml(document: str) -> Protocol:
       )
     )
   return protocol
+
+
+def _with_carriage_returns(document: str) -> str:
+  """Put back the line endings reading an element's text takes out.
+
+  A protocol file ends every line with a carriage return, including inside the elements whose text
+  runs to several lines -- the fitted-options document it carries as escaped text, the comments, and
+  the prose an older release stores its options as. Reading an element's text normalises those away,
+  so a file read and written again would differ from the one it came from. Writing is not the place
+  to fix it: by then it is not known whether the line endings were ever there.
+
+  Args:
+    document: The text as reading it produced.
+
+  Returns:
+    The text with carriage returns restored.
+  """
+  return document.replace("\r\n", "\n").replace("\n", "\r\n")
 
 
 def to_xml(protocol: Protocol) -> str:

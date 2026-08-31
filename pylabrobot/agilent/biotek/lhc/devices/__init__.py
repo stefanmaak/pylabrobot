@@ -18,5 +18,18 @@ from __future__ import annotations
 
 from pylabrobot.agilent.biotek.lhc.devices.build_rules import BuildRules, basecode_for, rules_for
 from pylabrobot.agilent.biotek.lhc.devices.instrument_settings import InstrumentSettings
+from pylabrobot.agilent.biotek.lhc.devices.settings_comparison import (
+  Difference,
+  SettingsComparison,
+  compare,
+)
 
-__all__ = ["BuildRules", "InstrumentSettings", "basecode_for", "rules_for"]
+__all__ = [
+  "BuildRules",
+  "Difference",
+  "InstrumentSettings",
+  "SettingsComparison",
+  "basecode_for",
+  "compare",
+  "rules_for",
+]
