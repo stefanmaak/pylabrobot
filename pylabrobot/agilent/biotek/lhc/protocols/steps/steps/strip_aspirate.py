@@ -45,7 +45,7 @@ class StripAspirate(Step):
 
   travel_rate: TravelRate = "3"
   delay: int = 0
-  positioning: Positioning = field(default_factory=lambda: Positioning(z=30))
+  positioning: Positioning = field(default_factory=lambda: Positioning(z_steps=22))
   secondary: SecondaryAspirate = field(default_factory=SecondaryAspirate)
   columns: WellMask = field(default_factory=WellMask.all_columns)
   rows: WellMask = field(default_factory=WellMask.all_rows)
@@ -93,7 +93,9 @@ class StripAspirate(Step):
       travel_rate=definition.TRAVEL_RATES[travel_rate],
       delay=definition.number(delay, 16),
       positioning=Positioning(
-        z=definition.signed(z, 16), x=definition.signed(x, 16), y=definition.signed(y, 8)
+        z_steps=definition.signed(z, 16),
+        x_steps=definition.signed(x, 16),
+        y_steps=definition.signed(y, 8),
       ),
       secondary=SecondaryAspirate.from_definition(pattern, secondary_z, secondary_x, secondary_y),
       columns=WellMask.from_definition(masks[0]) if masks else WellMask.all_columns(),
@@ -116,13 +118,13 @@ class StripAspirate(Step):
     payload = (
       u16(self.delay)
       + u8(TRAVEL_RATE_TO_BYTE[self.travel_rate])
-      + i16(self.positioning.x)
-      + i8(self.positioning.y)
-      + i16(self.positioning.z)
+      + i16(self.positioning.x_steps)
+      + i8(self.positioning.y_steps)
+      + i16(self.positioning.z_steps)
       + u8(SECONDARY_ASPIRATE_PATTERN_TO_BYTE[self.secondary.pattern])
-      + i16(self.secondary.positioning.x)
-      + i8(self.secondary.positioning.y)
-      + i16(self.secondary.positioning.z)
+      + i16(self.secondary.positioning.x_steps)
+      + i8(self.secondary.positioning.y_steps)
+      + i16(self.secondary.positioning.z_steps)
     )
     if self.in_wash:
       return pad(payload, _IN_WASH_PAYLOAD_LENGTH)

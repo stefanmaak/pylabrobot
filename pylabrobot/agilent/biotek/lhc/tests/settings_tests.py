@@ -8,6 +8,7 @@ what is checked -- including that a query for hardware a model cannot carry is n
 from __future__ import annotations
 
 import unittest
+from dataclasses import replace
 
 import pytest
 
@@ -54,6 +55,7 @@ class TestReadingTheDocument:
   """Turning the text a protocol file stores into a record."""
 
   def test_every_option_is_read(self):
+    """Every option is read."""
     settings = settings_document.from_xml(DOCUMENT)
     assert settings.family is InstrumentFamily.EL406
     assert settings.washer_manifold is WasherManifold.TUBE_96_DUAL
@@ -63,9 +65,11 @@ class TestReadingTheDocument:
     assert settings.strip_washer_manifold is StripWasherManifold.NOT_INSTALLED
 
   def test_a_document_round_trips(self):
+    """A document round trips."""
     assert settings_document.to_xml(settings_document.from_xml(DOCUMENT)) == DOCUMENT
 
   def test_the_defaults_round_trip(self):
+    """The defaults round trip."""
     default = InstrumentSettings()
     assert settings_document.from_xml(settings_document.to_xml(default)) == default
 
@@ -83,6 +87,7 @@ class TestReadingTheDocument:
       settings_document.from_xml(document)
 
   def test_text_that_is_not_a_document_is_refused(self):
+    """Text that is not a document is refused."""
     with pytest.raises(ValueError, match="will not read"):
       settings_document.from_xml("not a document")
 
@@ -106,11 +111,13 @@ class TestComparingWhatIsDeclaredWithWhatIsFitted:
   """The one thing a protocol's declared options are used for."""
 
   def test_an_instrument_equipped_the_same_way_agrees(self):
+    """An instrument equipped the same way agrees."""
     declared = settings_document.from_xml(DOCUMENT)
     assert compare(declared, declared)
     assert "equipped like this one" in str(compare(declared, declared))
 
   def test_each_option_that_differs_is_named(self):
+    """Each option that differs is named."""
     declared = settings_document.from_xml(DOCUMENT)
     actual = InstrumentSettings(
       family=InstrumentFamily.MULTIFLO_FX,
@@ -125,6 +132,7 @@ class TestComparingWhatIsDeclaredWithWhatIsFitted:
     assert "secondary peristaltic pump" in named
 
   def test_a_difference_reads_as_a_sentence(self):
+    """A difference reads as a sentence."""
     declared = settings_document.from_xml(DOCUMENT)
     actual = InstrumentSettings(family=InstrumentFamily.MULTIFLO)
     difference = compare(declared, actual).differences[0]
@@ -134,9 +142,9 @@ class TestComparingWhatIsDeclaredWithWhatIsFitted:
   def test_the_two_fields_a_document_omits_are_not_compared(self):
     """Comparing them would report a difference against a default nobody declared."""
     declared = settings_document.from_xml(DOCUMENT)
-    actual = settings_document.from_xml(DOCUMENT)
-    actual.syringe_box_size = SyringeBoxSize.DOUBLE
-    actual.advanced_dispense_offsets = True
+    actual = replace(
+      declared, syringe_box_size=SyringeBoxSize.DOUBLE, advanced_dispense_offsets=True
+    )
     assert compare(declared, actual)
 
 
@@ -178,6 +186,7 @@ class TestAskingTheInstrument(unittest.IsolatedAsyncioTestCase):
     return await settings_query.read_settings(link, family), io
 
   async def test_the_original_model_reads_its_own_options(self):
+    """The original model reads its own options."""
     settings, io = await self.read(InstrumentFamily.EL406)
     self.assertIs(settings.family, InstrumentFamily.EL406)
     self.assertIs(settings.washer_manifold, WasherManifold.TUBE_96_DUAL)
@@ -188,12 +197,14 @@ class TestAskingTheInstrument(unittest.IsolatedAsyncioTestCase):
     self.assertEqual(io.sent.count(int(CommandNumber.GET_SELECTED_PERI_INSTALLED)), 1)
 
   async def test_a_wash_only_model_is_not_asked_about_dispensers(self):
+    """A wash only model is not asked about dispensers."""
     settings, io = await self.read(InstrumentFamily.MODEL_405_TS)
     self.assertNotIn(int(CommandNumber.GET_SYRINGE_BOX_INFO), io.sent)
     self.assertNotIn(int(CommandNumber.GET_SELECTED_PERI_INSTALLED), io.sent)
     self.assertFalse(settings.peri_pump)
 
   async def test_a_dispenser_only_model_is_not_asked_about_a_wash_manifold(self):
+    """A dispenser only model is not asked about a wash manifold."""
     settings, io = await self.read(InstrumentFamily.MULTIFLO)
     self.assertNotIn(int(CommandNumber.GET_WASHER_MANIFOLD_INSTALLED), io.sent)
     self.assertIs(settings.washer_manifold, WasherManifold.NOT_INSTALLED)
@@ -201,6 +212,7 @@ class TestAskingTheInstrument(unittest.IsolatedAsyncioTestCase):
     self.assertEqual(io.sent.count(int(CommandNumber.GET_SELECTED_PERI_INSTALLED)), 2)
 
   async def test_the_newest_model_reads_its_strip_washer_and_its_firmware(self):
+    """The newest model reads its strip washer and its firmware."""
     settings, _ = await self.read(InstrumentFamily.MULTIFLO_FX)
     self.assertIs(settings.strip_washer_manifold, StripWasherManifold.PLATE_96_WELL)
     self.assertTrue(settings.single_well_enabled)
@@ -208,6 +220,7 @@ class TestAskingTheInstrument(unittest.IsolatedAsyncioTestCase):
     self.assertTrue(settings.advanced_dispense_offsets)
 
   async def test_an_absent_strip_washer_box_stops_the_manifold_being_asked_for(self):
+    """An absent strip washer box stops the manifold being asked for."""
     answers = dict(self.ANSWERS)
     answers[CommandNumber.IS_STRIP_WASHER_BOX_CONNECTED] = bytes([0])
     link, io = fake_link(answers=answers, family=InstrumentFamily.MULTIFLO_FX)

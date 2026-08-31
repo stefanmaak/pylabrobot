@@ -183,9 +183,9 @@ def check_manifold_dispense(
       )
     return rejection
   rejection = (
-    checks.offset_x(step.positioning.x, *checks.OFFSET_X_MANIFOLD_RANGE, prefix)
-    or checks.offset_y(step.positioning.y, *_manifold_y_range(settings), prefix)
-    or checks.offset_z(step.positioning.z, *_manifold_z_range(settings), prefix)
+    checks.offset_x(step.positioning.x_steps, *checks.OFFSET_X_MANIFOLD_RANGE, prefix)
+    or checks.offset_y(step.positioning.y_steps, *_manifold_y_range(settings), prefix)
+    or checks.offset_z(step.positioning.z_steps, *_manifold_z_range(settings), prefix)
   )
   if rejection is not None:
     return rejection
@@ -245,9 +245,9 @@ def check_manifold_aspirate(
   rejection = (
     checks.aspirate_delay(step.delay, False, prefix)
     or checks.travel_rate(step.travel_rate, WASHER_TRAVEL_RATES, prefix)
-    or checks.offset_x(step.positioning.x, *checks.OFFSET_X_MANIFOLD_RANGE, prefix)
-    or checks.offset_y(step.positioning.y, *_manifold_y_range(settings), prefix)
-    or checks.offset_z(step.positioning.z, *_manifold_z_range(settings), prefix)
+    or checks.offset_x(step.positioning.x_steps, *checks.OFFSET_X_MANIFOLD_RANGE, prefix)
+    or checks.offset_y(step.positioning.y_steps, *_manifold_y_range(settings), prefix)
+    or checks.offset_z(step.positioning.z_steps, *_manifold_z_range(settings), prefix)
   )
   if rejection is not None:
     return rejection
@@ -257,9 +257,9 @@ def check_manifold_aspirate(
     return None
   prefix = "Secondary Aspirate "
   return (
-    checks.offset_x(step.secondary.positioning.x, *checks.OFFSET_X_MANIFOLD_RANGE, prefix)
-    or checks.offset_y(step.secondary.positioning.y, *_manifold_y_range(settings), prefix)
-    or checks.offset_z(step.secondary.positioning.z, *_manifold_z_range(settings), prefix)
+    checks.offset_x(step.secondary.positioning.x_steps, *checks.OFFSET_X_MANIFOLD_RANGE, prefix)
+    or checks.offset_y(step.secondary.positioning.y_steps, *_manifold_y_range(settings), prefix)
+    or checks.offset_z(step.secondary.positioning.z_steps, *_manifold_z_range(settings), prefix)
   )
 
 
@@ -318,11 +318,11 @@ def check_syringe_dispense(
     or checks.syringe_volume(
       step.volume, step.flow_rate, settings.syringe_manifold, plate.wells, maximum, prefix
     )
-    or checks.offset_x(step.positioning.x, *x_range, prefix)
-    or checks.offset_y(step.positioning.y, *y_range, prefix)
+    or checks.offset_x(step.positioning.x_steps, *x_range, prefix)
+    or checks.offset_y(step.positioning.y_steps, *y_range, prefix)
     or checks.column_selection(step.columns.values, prefix)
     or checks.pump_delay(step.pump_delay, prefix)
-    or checks.offset_z(step.positioning.z, *checks.OFFSET_Z_RANGE, prefix)
+    or checks.offset_z(step.positioning.z_steps, *checks.OFFSET_Z_RANGE, prefix)
   )
   if rejection is not None or not step.pre_dispense.enabled:
     return rejection
@@ -395,9 +395,9 @@ def check_peri_dispense(
     checks.cassette_type(step.cassette_type)
     or checks.volume_or_half_microlitre(step.volume, 1, maximum, half_allowed, prefix)
     or checks.peri_flow_rate(step.flow_rate, prefix)
-    or checks.offset_x(step.positioning.x, *x_range, prefix)
-    or checks.offset_y(step.positioning.y, *y_range, prefix)
-    or checks.offset_z(step.positioning.z, *checks.OFFSET_Z_RANGE, prefix)
+    or checks.offset_x(step.positioning.x_steps, *x_range, prefix)
+    or checks.offset_y(step.positioning.y_steps, *y_range, prefix)
+    or checks.offset_z(step.positioning.z_steps, *checks.OFFSET_Z_RANGE, prefix)
     or checks.column_selection(step.columns.values, prefix)
     or checks.row_selection(step.rows.values, plate.rows // 8, prefix)
   )
@@ -575,9 +575,9 @@ def check_strip_aspirate(
   rejection = (
     checks.aspirate_delay(step.delay, False, prefix)
     or checks.travel_rate(step.travel_rate, STRIP_TRAVEL_RATES, prefix)
-    or checks.offset_x(step.positioning.x, *_STRIP_OFFSET_X_RANGE, prefix)
-    or checks.offset_y(step.positioning.y, *_STRIP_OFFSET_Y_RANGE, prefix)
-    or checks.offset_z(step.positioning.z, *_STRIP_OFFSET_Z_RANGE, prefix)
+    or checks.offset_x(step.positioning.x_steps, *_STRIP_OFFSET_X_RANGE, prefix)
+    or checks.offset_y(step.positioning.y_steps, *_STRIP_OFFSET_Y_RANGE, prefix)
+    or checks.offset_z(step.positioning.z_steps, *_STRIP_OFFSET_Z_RANGE, prefix)
   )
   if rejection is not None:
     return rejection
@@ -587,9 +587,9 @@ def check_strip_aspirate(
     return None
   prefix = "Secondary Aspirate "
   return (
-    checks.offset_x(step.secondary.positioning.x, *_STRIP_OFFSET_X_RANGE, prefix)
-    or checks.offset_y(step.secondary.positioning.y, *_STRIP_OFFSET_Y_RANGE, prefix)
-    or checks.offset_z(step.secondary.positioning.z, *_STRIP_OFFSET_Z_RANGE, prefix)
+    checks.offset_x(step.secondary.positioning.x_steps, *_STRIP_OFFSET_X_RANGE, prefix)
+    or checks.offset_y(step.secondary.positioning.y_steps, *_STRIP_OFFSET_Y_RANGE, prefix)
+    or checks.offset_z(step.secondary.positioning.z_steps, *_STRIP_OFFSET_Z_RANGE, prefix)
   )
 
 
@@ -616,9 +616,9 @@ def check_strip_dispense(
     rejection = (
       checks.flow_rate(step.flow_rate, 1, 11, prefix)
       or checks.strip_dispense_volume(step.volume, step.flow_rate, manifold, prefix)
-      or checks.offset_x(step.positioning.x, *_STRIP_OFFSET_X_RANGE, prefix)
-      or checks.offset_y(step.positioning.y, *_STRIP_OFFSET_Y_RANGE, prefix)
-      or checks.offset_z(step.positioning.z, *_STRIP_OFFSET_Z_RANGE, prefix)
+      or checks.offset_x(step.positioning.x_steps, *_STRIP_OFFSET_X_RANGE, prefix)
+      or checks.offset_y(step.positioning.y_steps, *_STRIP_OFFSET_Y_RANGE, prefix)
+      or checks.offset_z(step.positioning.z_steps, *_STRIP_OFFSET_Z_RANGE, prefix)
     )
     if rejection is not None:
       return rejection
@@ -712,12 +712,12 @@ def check_peri_wash_aspirate(
   prefix = "PW-Aspirate "
   return (
     checks.volume(step.volume, 1, _WIDE_VOLUME_MAXIMUM, prefix)
-    or checks.offset_y(step.positioning.y, *_STRIP_OFFSET_Y_RANGE, prefix)
-    or checks.offset_x(step.positioning.x, *_STRIP_OFFSET_X_RANGE, prefix)
+    or checks.offset_y(step.positioning.y_steps, *_STRIP_OFFSET_Y_RANGE, prefix)
+    or checks.offset_x(step.positioning.x_steps, *_STRIP_OFFSET_X_RANGE, prefix)
     or checks.row_selection(step.rows.values, plate.rows // 8, prefix)
     or checks.column_selection(step.columns.values, prefix)
     or checks.flow_rate(step.flow_rate, 0, 4, prefix)
-    or checks.offset_z(step.positioning.z, *_STRIP_OFFSET_Z_RANGE, prefix)
+    or checks.offset_z(step.positioning.z_steps, *_STRIP_OFFSET_Z_RANGE, prefix)
   )
 
 
@@ -740,14 +740,14 @@ def check_peri_wash_dispense(
   prefix = "PW-Dispense "
   return (
     checks.volume(step.volume, 1, _WIDE_VOLUME_MAXIMUM, prefix)
-    or checks.offset_y(step.positioning.y, *_STRIP_OFFSET_Y_RANGE, prefix)
-    or checks.offset_x(step.positioning.x, *_STRIP_OFFSET_X_RANGE, prefix)
+    or checks.offset_y(step.positioning.y_steps, *_STRIP_OFFSET_Y_RANGE, prefix)
+    or checks.offset_x(step.positioning.x_steps, *_STRIP_OFFSET_X_RANGE, prefix)
     or checks.volume(step.pre_dispense.volume, 25, _WIDE_VOLUME_MAXIMUM, "Pre-dispense ")
     or checks.count(step.pre_dispense.count, "Pre-dispense ")
     or checks.row_selection(step.rows.values, plate.rows // 8, prefix)
     or checks.column_selection(step.columns.values, prefix)
     or checks.flow_rate(step.flow_rate, 0, 7, prefix)
-    or checks.offset_z(step.positioning.z, *_STRIP_OFFSET_Z_RANGE, prefix)
+    or checks.offset_z(step.positioning.z_steps, *_STRIP_OFFSET_Z_RANGE, prefix)
   )
 
 

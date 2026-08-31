@@ -1,3 +1,5 @@
+"""The path a second aspirate traces in the well."""
+
 from __future__ import annotations
 
 from typing import Literal

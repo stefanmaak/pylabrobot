@@ -109,7 +109,6 @@ class MultiFlo:
   ) -> None:
     self._runtime = Runtime(
       link=Link(port=port, family=self.family, name=name, timeout=timeout, io=io),
-      family=self.family,
       rules=rules_for(self.family),
     )
     self.syringe_dispenser = SyringeDispenser(self._runtime)

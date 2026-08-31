@@ -1,3 +1,5 @@
+"""What the instrument is doing, as a status poll reports it."""
+
 from __future__ import annotations
 
 import enum

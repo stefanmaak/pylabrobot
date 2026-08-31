@@ -1,3 +1,5 @@
+"""How fast an aspirate head travels down through a well."""
+
 from __future__ import annotations
 
 from typing import Literal
@@ -31,22 +33,6 @@ TRAVEL_RATE_TO_BYTE: dict[TravelRate, int] = {
 }
 """The value each rate is encoded as in a step command."""
 
-TRAVEL_RATE_TO_SPEED: dict[TravelRate, float] = {
-  "1": 4.1,
-  "2": 5.0,
-  "3": 7.3,
-  "4": 9.4,
-  "5": 9.4,
-  "0 CW": 1.0,
-  "1 CW": 4.1,
-  "2 CW": 5.0,
-  "3 CW": 7.3,
-  "4 CW": 9.4,
-  "6 CW": 14.7,
-  "7 CW": 30.0,
-}
-"""Descent speed in mm/s per rate."""
-
 WASHER_TRAVEL_RATES: tuple[TravelRate, ...] = (
   "1",
   "2",
@@ -63,15 +49,3 @@ WASHER_TRAVEL_RATES: tuple[TravelRate, ...] = (
 
 STRIP_TRAVEL_RATES: tuple[TravelRate, ...] = WASHER_TRAVEL_RATES + ("0 CW", "7 CW")
 """The rates a strip washer aspirate step accepts."""
-
-
-def is_cell_washing(rate: TravelRate) -> bool:
-  """Whether a rate needs the cell washing module.
-
-  Args:
-    rate: The travel rate to test.
-
-  Returns:
-    True for the single-speed ``CW`` rates.
-  """
-  return rate.endswith(" CW")

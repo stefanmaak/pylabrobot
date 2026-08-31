@@ -1,3 +1,5 @@
+"""What a homing command should do."""
+
 from __future__ import annotations
 
 import enum

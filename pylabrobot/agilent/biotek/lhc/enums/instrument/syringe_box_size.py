@@ -1,3 +1,5 @@
+"""How many bottles the fitted syringe box holds."""
+
 from __future__ import annotations
 
 import enum

@@ -44,13 +44,16 @@ class TestEveryCode:
       assert isinstance(classify(code), ErrorKind)
 
   def test_every_code_has_a_message(self):
+    """Every code has a message."""
     for code in range(0, 0x10000, 101):
       assert isinstance(error_message(code), str)
 
   def test_a_code_with_no_row_has_no_message_rather_than_a_made_up_one(self):
+    """A code with no row has no message rather than a made up one."""
     assert error_message(0x0001) == ""
 
   def test_success_is_not_an_error(self):
+    """Success is not an error."""
     assert classify(NO_ERROR) is ErrorKind.NONE
     raise_for_status(NO_ERROR)
 
@@ -78,9 +81,11 @@ class TestWhichExceptionACodeBecomes:
   """The class is the caller's decision, so the mapping is what matters."""
 
   def test_success_raises_nothing(self):
+    """Success raises nothing."""
     raise_for_status(0)
 
   def test_a_refused_request_is_its_own_kind(self):
+    """A refused request is its own kind."""
     with pytest.raises(RejectedError):
       raise_for_status(0x6029)
 
@@ -92,6 +97,7 @@ class TestWhichExceptionACodeBecomes:
       raise_for_status(code)
 
   def test_every_exception_is_one_of_ours(self):
+    """Every exception is one of ours."""
     for code in range(0x6000, 0x6100, 3):
       try:
         raise_for_status(code)
@@ -100,6 +106,7 @@ class TestWhichExceptionACodeBecomes:
         assert error.code == normalize(code)
 
   def test_a_failure_this_package_found_itself_carries_no_code(self):
+    """A failure this package found itself carries no code."""
     error = fail(ErrorKind.LINK, "the port went away", operation="write")
     assert error.code == NO_ERROR
     assert "the port went away" in str(error)
@@ -110,11 +117,13 @@ class TestWhatAFailureSays:
   """The text a caller sees, which has to name what was being attempted."""
 
   def test_a_failure_names_the_operation_and_the_code(self):
+    """A failure names the operation and the code."""
     info = info_for(0x6029, InstrumentFamily.EL406, operation="opening the batch")
     assert "opening the batch" in str(info)
     assert "0x6029" in str(info)
 
   def test_a_description_carries_the_code_and_its_message(self):
+    """A description carries the code and its message."""
     assert "6029" in describe(0x6029) or "24617" in describe(0x6029)
 
   def test_the_family_changes_what_a_motor_code_means(self):

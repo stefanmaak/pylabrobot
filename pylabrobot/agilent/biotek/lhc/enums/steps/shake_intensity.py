@@ -1,3 +1,5 @@
+"""How vigorously the carrier shakes."""
+
 from __future__ import annotations
 
 from typing import Literal
@@ -16,11 +18,3 @@ SHAKE_INTENSITY_TO_BYTE: dict[ShakeIntensity, int] = {
   "Fast": 4,
 }
 """The value each intensity is encoded as in a step command."""
-
-SHAKE_INTENSITY_TO_FREQUENCY: dict[ShakeIntensity, float | None] = {
-  "Variable": None,
-  "Slow": 3.5,
-  "Medium": 5.0,
-  "Fast": 8.0,
-}
-"""Shake frequency in Hz per intensity, or None where the frequency is swept."""

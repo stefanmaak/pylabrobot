@@ -46,7 +46,7 @@ class ManifoldAspirate(Step):
   vacuum_filtration: bool = False
   travel_rate: TravelRate = "3"
   delay: int = 0
-  positioning: Positioning = field(default_factory=lambda: Positioning(z=30))
+  positioning: Positioning = field(default_factory=lambda: Positioning(z_steps=22))
   secondary: SecondaryAspirate = field(default_factory=SecondaryAspirate)
   radius: str = "0"
   columns: WellMask = field(default_factory=WellMask.all_columns)
@@ -107,7 +107,9 @@ class ManifoldAspirate(Step):
       travel_rate=definition.TRAVEL_RATES[travel_rate],
       delay=definition.number(delay, 16),
       positioning=Positioning(
-        z=definition.signed(z, 16), x=definition.signed(x, 8), y=definition.signed(y, 8)
+        z_steps=definition.signed(z, 16),
+        x_steps=definition.signed(x, 8),
+        y_steps=definition.signed(y, 8),
       ),
       secondary=SecondaryAspirate.from_definition(pattern, secondary_z, secondary_x, secondary_y),
       radius=radius,
@@ -132,13 +134,13 @@ class ManifoldAspirate(Step):
       u8(1 if self.vacuum_filtration else 0)
       + u16(self.delay)
       + u8(TRAVEL_RATE_TO_BYTE[self.travel_rate])
-      + i8(self.positioning.x)
-      + i8(self.positioning.y)
-      + i16(self.positioning.z)
+      + i8(self.positioning.x_steps)
+      + i8(self.positioning.y_steps)
+      + i16(self.positioning.z_steps)
       + u8(SECONDARY_ASPIRATE_PATTERN_TO_BYTE[self.secondary.pattern])
-      + i8(self.secondary.positioning.x)
-      + i8(self.secondary.positioning.y)
-      + i16(self.secondary.positioning.z)
+      + i8(self.secondary.positioning.x_steps)
+      + i8(self.secondary.positioning.y_steps)
+      + i16(self.secondary.positioning.z_steps)
       + u16(0)
       + u16(columns),
       _PAYLOAD_LENGTH,

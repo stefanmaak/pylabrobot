@@ -49,18 +49,3 @@ class HomeVerifyMotors(Command):
       payload=bytes([home_type, motor]),
       timeout=_HOME_TIMEOUT,
     )
-
-
-class SetSensorEnabled(Command):
-  """Switch a sensor on or off."""
-
-  def __init__(self, sensor: int, enabled: bool) -> None:
-    """Build the command.
-
-    Args:
-      sensor: Which sensor to switch.
-      enabled: Whether it should be on.
-    """
-    super().__init__(
-      number=CommandNumber.SET_SENSOR_ENABLED, payload=bytes([sensor, 1 if enabled else 0])
-    )

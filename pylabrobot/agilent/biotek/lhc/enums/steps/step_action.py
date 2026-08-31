@@ -1,3 +1,5 @@
+"""What a protocol entry does, beyond operating the instrument."""
+
 from __future__ import annotations
 
 import enum

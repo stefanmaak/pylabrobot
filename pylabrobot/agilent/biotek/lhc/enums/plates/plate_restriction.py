@@ -1,3 +1,5 @@
+"""Which plates an instrument has been configured to accept."""
+
 from __future__ import annotations
 
 import enum

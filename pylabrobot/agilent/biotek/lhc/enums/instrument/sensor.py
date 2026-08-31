@@ -1,3 +1,5 @@
+"""The sensors an instrument can be asked about."""
+
 from __future__ import annotations
 
 import enum

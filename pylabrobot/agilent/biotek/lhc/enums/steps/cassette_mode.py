@@ -1,3 +1,5 @@
+"""What to do when the fitted cassette is not the one a step needs."""
+
 from __future__ import annotations
 
 from typing import Literal

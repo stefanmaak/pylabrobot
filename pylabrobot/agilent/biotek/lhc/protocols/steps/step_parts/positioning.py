@@ -9,19 +9,24 @@ from dataclasses import dataclass
 class Positioning:
   """An X, Y and Z offset from the nominal position for the plate in use.
 
-  Values are in the instrument's own motor steps, positive Z being further down into the well.
-  What range each axis accepts depends on the step and on the plate, and is checked by validation
-  rather than here.
+  The values are the instrument's own motor steps, not millimetres, and the field names say so.
+  This is what a protocol file stores and what a step command carries, and the conversion to
+  millimetres is not one number: it differs per axis, per instrument model and per head. Keeping the
+  step model in the unit the file uses is what lets a protocol be read and written without an
+  instrument to ask.
+
+  Positive Z is further down into the well. What range each axis accepts depends on the step and on
+  the plate, and is checked by validation rather than here.
 
   Attributes:
-    z: Depth offset.
-    x: Offset across the plate.
-    y: Offset along the plate.
+    z_steps: Depth offset, in motor steps.
+    x_steps: Offset across the plate, in motor steps.
+    y_steps: Offset along the plate, in motor steps.
   """
 
-  z: int = 0
-  x: int = 0
-  y: int = 0
+  z_steps: int = 0
+  x_steps: int = 0
+  y_steps: int = 0
 
   def to_definition(self) -> str:
     """The three fields a protocol file stores, which are ordered Z, X, Y.
@@ -29,7 +34,7 @@ class Positioning:
     Returns:
       The fields, ``|``-separated.
     """
-    return f"{self.z}|{self.x}|{self.y}"
+    return f"{self.z_steps}|{self.x_steps}|{self.y_steps}"
 
   @classmethod
   def from_definition(cls, z: str, x: str, y: str) -> Positioning:
@@ -45,4 +50,4 @@ class Positioning:
     Returns:
       The offsets.
     """
-    return cls(z=int(z), x=int(x), y=int(y))
+    return cls(z_steps=int(z), x_steps=int(x), y_steps=int(y))

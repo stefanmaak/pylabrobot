@@ -18,7 +18,6 @@ from pylabrobot.agilent.biotek.lhc.enums.steps.cassette_type import (
   CASSETTE_TYPE_TO_BYTE,
   CassetteType,
 )
-from pylabrobot.agilent.biotek.lhc.enums.steps.fill_pattern import FILL_PATTERN_TO_BYTE, FillPattern
 from pylabrobot.agilent.biotek.lhc.enums.steps.peri_flow_rate import (
   PERI_FLOW_RATE_TO_BYTE,
   PeriFlowRate,
@@ -31,7 +30,6 @@ from pylabrobot.agilent.biotek.lhc.enums.steps.secondary_aspirate_pattern import
 from pylabrobot.agilent.biotek.lhc.enums.steps.shake_axis import SHAKE_AXIS_TO_BYTE, ShakeAxis
 from pylabrobot.agilent.biotek.lhc.enums.steps.shake_intensity import (
   SHAKE_INTENSITY_TO_BYTE,
-  SHAKE_INTENSITY_TO_FREQUENCY,
   ShakeIntensity,
 )
 from pylabrobot.agilent.biotek.lhc.enums.steps.step_action import StepAction
@@ -44,9 +42,7 @@ from pylabrobot.agilent.biotek.lhc.enums.steps.syringe_bottle import (
 from pylabrobot.agilent.biotek.lhc.enums.steps.travel_rate import (
   STRIP_TRAVEL_RATES,
   TRAVEL_RATE_TO_BYTE,
-  TRAVEL_RATE_TO_SPEED,
   WASHER_TRAVEL_RATES,
   TravelRate,
-  is_cell_washing,
 )
 from pylabrobot.agilent.biotek.lhc.enums.steps.wash_format import WASH_FORMAT_TO_BYTE, WashFormat

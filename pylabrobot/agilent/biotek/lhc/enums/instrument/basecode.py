@@ -1,3 +1,5 @@
+"""Which firmware variant an instrument is running."""
+
 from __future__ import annotations
 
 import enum

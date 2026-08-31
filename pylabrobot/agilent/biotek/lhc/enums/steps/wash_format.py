@@ -1,3 +1,5 @@
+"""How much of a plate a wash covers."""
+
 from __future__ import annotations
 
 from typing import Literal

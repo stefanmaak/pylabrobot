@@ -17,11 +17,12 @@ import asyncio
 import logging
 
 from pylabrobot.agilent.biotek.lhc.devices.batch import batch
+from pylabrobot.agilent.biotek.lhc.devices.queries import optional_byte
 from pylabrobot.agilent.biotek.lhc.devices.runtime import Runtime
 from pylabrobot.agilent.biotek.lhc.enums.motion.carrier_type import CarrierType
 from pylabrobot.agilent.biotek.lhc.enums.plates.plate_restriction import PlateRestriction
 from pylabrobot.agilent.biotek.lhc.enums.status.run_state import RunState
-from pylabrobot.agilent.biotek.lhc.error_handling import BiotekError, ErrorKind, fail
+from pylabrobot.agilent.biotek.lhc.error_handling import ErrorKind, fail
 from pylabrobot.agilent.biotek.lhc.protocols.protocol import Protocol
 from pylabrobot.agilent.biotek.lhc.protocols.steps.step_interface import Step
 from pylabrobot.agilent.biotek.lhc.protocols.validation.protocol_pass import validate
@@ -31,7 +32,6 @@ from pylabrobot.agilent.biotek.lhc.serialization.command_numbers import (
   CommandNumber,
   command_for_step,
 )
-from pylabrobot.agilent.biotek.lhc.serialization.commands.configuration import ByteQuery
 from pylabrobot.agilent.biotek.lhc.serialization.commands.run_control import (
   AbortStep,
   GetProtocolStatus,
@@ -303,33 +303,13 @@ async def _read_instrument_facts(runtime: Runtime) -> None:
     runtime: The device's state, updated in place.
   """
   if runtime.plate_restriction is None:
-    answer = await _optional_byte(runtime, CommandNumber.GET_PLATE_RESTRICTION)
+    answer = await optional_byte(runtime.link, CommandNumber.GET_PLATE_RESTRICTION)
     if answer is not None:
       runtime.plate_restriction = PlateRestriction(answer)
   if runtime.carrier_type is None:
-    answer = await _optional_byte(runtime, CommandNumber.GET_CARRIER_TYPE)
+    answer = await optional_byte(runtime.link, CommandNumber.GET_CARRIER_TYPE)
     if answer is not None:
       runtime.carrier_type = CarrierType(answer)
-
-
-async def _optional_byte(runtime: Runtime, number: CommandNumber) -> int | None:
-  """Read a one-byte answer that not every firmware gives.
-
-  Args:
-    runtime: The device's state.
-    number: Which query to send.
-
-  Returns:
-    The byte, or None when the instrument would not answer -- either refusing the query, or
-    acknowledging it and sending no value back, which older firmware does for a query it does
-    not implement.
-  """
-  command = ByteQuery(number)
-  try:
-    return command.parse(await runtime.link.request(command, operation=number.name))
-  except (BiotekError, ValueError) as error:
-    logger.debug("%s does not answer %s: %s", runtime.link.name, number.name, error)
-    return None
 
 
 def _first_code(report: ValidationReport) -> int:

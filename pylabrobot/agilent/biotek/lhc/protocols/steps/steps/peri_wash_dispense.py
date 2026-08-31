@@ -44,7 +44,7 @@ class PeriWashDispense(Step):
 
   volume: int = 100
   flow_rate: int = 2
-  positioning: Positioning = field(default_factory=lambda: Positioning(z=30))
+  positioning: Positioning = field(default_factory=lambda: Positioning(z_steps=22))
   peri_pump: PeriPump | None = "Primary"
   pre_dispense: PreDispense = field(
     default_factory=lambda: PreDispense(enabled=True, volume=25, count=2)
@@ -103,7 +103,9 @@ class PeriWashDispense(Step):
       volume=definition.number(volume, 16),
       flow_rate=definition.number(flow_rate, 8),
       positioning=Positioning(
-        z=definition.signed(z, 16), x=definition.signed(x, 16), y=definition.signed(y, 8)
+        z_steps=definition.signed(z, 16),
+        x_steps=definition.signed(x, 16),
+        y_steps=definition.signed(y, 8),
       ),
       peri_pump=_BYTE_TO_PERI_PUMP.get(int(pump)),
       pre_dispense=PreDispense(
@@ -131,9 +133,9 @@ class PeriWashDispense(Step):
     return pad(
       u16(self.volume)
       + u8(self.flow_rate)
-      + i16(self.positioning.x)
-      + i8(self.positioning.y)
-      + i16(self.positioning.z)
+      + i16(self.positioning.x_steps)
+      + i8(self.positioning.y_steps)
+      + i16(self.positioning.z_steps)
       + u16(self.pre_dispense.wire_volume)
       + u8(self.pre_dispense.count)
       + self.columns.to_bytes()

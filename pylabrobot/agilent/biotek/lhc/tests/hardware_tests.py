@@ -54,6 +54,7 @@ class TestAgainstRealFirmware(unittest.IsolatedAsyncioTestCase):
     self.assertTrue(self.device.get_available_steps())
 
   async def test_the_status_can_be_read_without_a_batch_open(self):
+    """The status can be read without a batch open."""
     self.assertIsNotNone((await self.device.get_status()).state)
 
   async def test_a_batch_opens_and_closes(self):

@@ -32,8 +32,7 @@ class Runtime:
   """Everything shared behaviour needs from the device that owns it.
 
   Attributes:
-    link: The connection to the instrument.
-    family: Which model this is, which the instrument does not report and so is declared.
+    link: The connection to the instrument, which carries which model this is.
     rules: Which validation rules this model's firmware runs.
     settings: What the instrument has fitted. Read from the instrument by ``setup()``, and the
       record every step is encoded against.
@@ -53,7 +52,6 @@ class Runtime:
   """
 
   link: Link
-  family: InstrumentFamily
   rules: BuildRules = COMMON
   settings: InstrumentSettings = field(default_factory=InstrumentSettings)
   reconciles_cassette_head: bool = False
@@ -89,6 +87,11 @@ class Runtime:
       RejectedError: If no plate has been set.
     """
     return self.plate_record.plate_type
+
+  @property
+  def family(self) -> InstrumentFamily:
+    """Which model this is, which the instrument does not report and so is declared."""
+    return self.link.family
 
   def forget_instrument_facts(self) -> None:
     """Forget what was read off the instrument about the plate it will accept.

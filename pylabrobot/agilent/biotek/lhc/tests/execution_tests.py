@@ -63,7 +63,7 @@ class ExecutionTestCase(unittest.IsolatedAsyncioTestCase):
       family=FAMILY,
       busy_after_step=busy_after_step,
     )
-    state = Runtime(link=link, family=FAMILY, rules=rules_for(FAMILY), settle=0)
+    state = Runtime(link=link, rules=rules_for(FAMILY), settle=0)
     if with_plate:
       state.plate = resolve(make_plate(96), FAMILY)
     await link.setup()
@@ -86,6 +86,7 @@ class TestRunningAStep(ExecutionTestCase):
   """Sending one step and waiting for it."""
 
   async def test_a_step_is_sent_with_the_plate_in_front_of_it(self):
+    """A step is sent with the plate in front of it."""
     state, io = await self.opened()
     async with batch(state):
       await execution.run_step(state, ManifoldPrime(volume=40_000))
@@ -94,6 +95,7 @@ class TestRunningAStep(ExecutionTestCase):
     self.assertEqual(payload[1:], ManifoldPrime(volume=40_000).to_bytes(state.settings))
 
   async def test_a_step_is_polled_until_it_stops_being_busy(self):
+    """A step is polled until it stops being busy."""
     state, io = await self.opened(busy_polls=2)
     async with batch(state):
       await execution.run_step(state, ManifoldPrime(), interval=0)
@@ -124,11 +126,13 @@ class TestRunningAStep(ExecutionTestCase):
       await execution.status(state)
 
   async def test_nothing_runs_without_a_plate(self):
+    """Nothing runs without a plate."""
     state, _ = await self.opened(with_plate=False)
     with self.assertRaisesRegex(RejectedError, "no plate"):
       await execution.run_step(state, ManifoldPrime())
 
   async def test_the_status_reports_what_the_instrument_is_doing(self):
+    """The status reports what the instrument is doing."""
     state, _ = await self.opened()
     self.assertIs((await execution.status(state)).state, RunState.READY)
 
@@ -137,6 +141,7 @@ class TestTheBatchBracket(ExecutionTestCase):
   """Opening and closing the batch a step has to run inside."""
 
   async def test_a_batch_opens_and_closes_around_the_block(self):
+    """A batch opens and closes around the block."""
     state, io = await self.opened()
     async with batch(state):
       self.assertTrue(state.in_batch)
@@ -147,6 +152,7 @@ class TestTheBatchBracket(ExecutionTestCase):
     )
 
   async def test_a_batch_inside_a_batch_does_nothing(self):
+    """A batch inside a batch does nothing."""
     state, io = await self.opened()
     async with batch(state):
       async with batch(state):
@@ -158,6 +164,7 @@ class TestTheBatchBracket(ExecutionTestCase):
     self.assertEqual(self.count(io, CommandNumber.EXIT_PROTOCOL), 1)
 
   async def test_a_batch_closes_even_when_the_block_fails(self):
+    """A batch closes even when the block fails."""
     state, io = await self.opened()
     with self.assertRaises(RuntimeError):
       async with batch(state):
@@ -167,6 +174,7 @@ class TestTheBatchBracket(ExecutionTestCase):
     self.assertFalse(state.port.locked())
 
   async def test_the_instrument_is_released_when_the_batch_cannot_open(self):
+    """The instrument is released when the batch cannot open."""
     state, _ = await self.opened(status=0x6029)
     with self.assertRaises(BiotekError):
       async with batch(state):
@@ -175,6 +183,7 @@ class TestTheBatchBracket(ExecutionTestCase):
     self.assertFalse(state.in_batch)
 
   async def test_homing_before_the_close_is_asked_for_not_assumed(self):
+    """Homing before the close is asked for not assumed."""
     state, io = await self.opened()
     async with batch(state):
       pass
@@ -193,6 +202,7 @@ class TestCheckingAProtocol(ExecutionTestCase):
   """The pass that decides whether a protocol may run, and what skipping it costs."""
 
   async def test_a_protocol_is_checked_before_the_batch_opens(self):
+    """A protocol is checked before the batch opens."""
     state, io = await self.opened()
     await execution.run_steps(state, [ManifoldPrime(volume=40_000)])
     # What the instrument accepts is read as part of the check, so before the open.
@@ -223,18 +233,21 @@ class TestCheckingAProtocol(ExecutionTestCase):
     self.assertFalse(state.reservations.uses_primary)
 
   async def test_the_check_reports_rather_than_raises(self):
+    """The check reports rather than raises."""
     state, _ = await self.opened()
     report = await execution.can_run(state, [ManifoldPrime(volume=40_000)])
     self.assertTrue(report)
     self.assertIn("can run", str(report))
 
   async def test_what_the_instrument_accepts_is_read_once(self):
+    """What the instrument accepts is read once."""
     state, io = await self.opened()
     await execution.can_run(state, [ManifoldPrime()])
     await execution.can_run(state, [ManifoldPrime()])
     self.assertEqual(self.count(io, CommandNumber.GET_PLATE_RESTRICTION), 1)
 
   async def test_a_new_plate_makes_the_next_check_ask_again(self):
+    """A new plate makes the next check ask again."""
     state, io = await self.opened()
     await execution.can_run(state, [ManifoldPrime()])
     state.forget_instrument_facts()
@@ -246,16 +259,19 @@ class TestRunControl(ExecutionTestCase):
   """Stopping a running step, and letting it go on."""
 
   async def test_abort_sends_its_own_command(self):
+    """Abort sends its own command."""
     state, io = await self.opened()
     await execution.abort(state)
     self.assertEqual(io.sent, [int(CommandNumber.ABORT_STEP)])
 
   async def test_pause_sends_its_own_command(self):
+    """Pause sends its own command."""
     state, io = await self.opened()
     await execution.pause(state)
     self.assertEqual(io.sent, [int(CommandNumber.PAUSE_STEP)])
 
   async def test_resume_sends_its_own_command(self):
+    """Resume sends its own command."""
     state, io = await self.opened()
     await execution.resume(state)
     self.assertEqual(io.sent, [int(CommandNumber.RESUME_STEP)])

@@ -98,8 +98,3 @@ class Header:
       payload_length=int.from_bytes(raw[7:9], "little"),
       check=int.from_bytes(raw[9:11], "little"),
     )
-
-  @property
-  def is_valid(self) -> bool:
-    """Whether this looks like a reply header at all, which is what its first byte says."""
-    return self.start in (START_MARKER, VERSION_MARKER)

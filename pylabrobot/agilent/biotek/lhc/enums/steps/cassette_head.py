@@ -1,3 +1,5 @@
+"""How a peristaltic cassette's tubes map onto wells."""
+
 from __future__ import annotations
 
 from typing import Literal

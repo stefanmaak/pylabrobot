@@ -98,6 +98,7 @@ class TestTheReport:
   """What the pass answers with."""
 
   def test_a_protocol_that_can_run_is_truthy(self):
+    """A protocol that can run is truthy."""
     report, _ = check([ManifoldPrime(volume=40_000)])
     assert report
     assert report.failures == []
@@ -111,6 +112,7 @@ class TestTheReport:
     assert len(report.failures) == 2
 
   def test_a_report_prints_only_what_cannot_run(self):
+    """A report prints only what cannot run."""
     settings = InstrumentSettings(family=EL406, ultrasonic=False)
     report, _ = check([ManifoldPrime(volume=40_000), ManifoldAutoClean()], settings)
     printed = str(report)
@@ -118,6 +120,7 @@ class TestTheReport:
     assert "MANIFOLD_AUTO_CLEAN" in printed
 
   def test_a_step_carries_its_number_and_its_reason(self):
+    """A step carries its number and its reason."""
     settings = InstrumentSettings(family=EL406, ultrasonic=False)
     report, _ = check([ManifoldPrime(volume=40_000), ManifoldAutoClean()], settings)
     failure = report.failures[0]
@@ -147,6 +150,7 @@ class TestThePlateRule:
   def test_a_plate_allows_a_step_type_or_does_not(
     self, step_type: StepType, wells: int, allowed: bool
   ):
+    """A plate allows a step type or does not."""
     plate = {96: PLATE_96, 384: PLATE_384, 1536: PLATE_1536}[wells]
     assert (plate_rules.check_plate(plate, step_type) is None) is allowed
 
@@ -188,14 +192,17 @@ class TestWhatMustBeFitted:
     ],
   )
   def test_a_step_whose_hardware_is_absent_cannot_run(self, step: Step, settings):
+    """A step whose hardware is absent cannot run."""
     report, _ = check([step], settings)
     assert not report
 
   def test_a_step_whose_hardware_is_fitted_can_run(self):
+    """A step whose hardware is fitted can run."""
     report, _ = check([PeriPrime()], InstrumentSettings(family=EL406, peri_pump=True))
     assert report
 
   def test_the_palette_is_what_is_fitted(self):
+    """The palette is what is fitted."""
     everything = available_step_types(InstrumentSettings(family=EL406))
     without = available_step_types(
       InstrumentSettings(family=EL406, peri_pump=False, ultrasonic=False)
@@ -210,6 +217,7 @@ class TestWhatTheProtocolCommitsTo:
   """The rules that are about the protocol as a whole rather than one step."""
 
   def test_one_buffer_throughout_unless_a_valve_box_can_switch_it(self):
+    """One buffer throughout unless a valve box can switch it."""
     without = InstrumentSettings(
       family=EL406, valve_box=ValveBox.NOT_INSTALLED, buffer_switching=False
     )
@@ -221,6 +229,7 @@ class TestWhatTheProtocolCommitsTo:
     assert report.failures[0].number == 2
 
   def test_the_same_buffer_twice_is_no_conflict(self):
+    """The same buffer twice is no conflict."""
     without = InstrumentSettings(
       family=EL406, valve_box=ValveBox.NOT_INSTALLED, buffer_switching=False
     )
@@ -246,15 +255,18 @@ class TestWhatThePassReserves:
   """The pass's second output: what the protocol requires of the pumps."""
 
   def test_a_pinned_cassette_is_reserved_for_its_pump(self):
+    """A pinned cassette is reserved for its pump."""
     _, reservations = check([PeriPrime(cassette_type="5uL", peri_pump="Primary")])
     assert reservations.cassette_primary == "5uL"
     assert reservations.uses_primary
 
   def test_accepting_any_cassette_pins_nothing(self):
+    """Accepting any cassette pins nothing."""
     _, reservations = check([PeriPrime(cassette_type="Any", peri_pump="Primary")])
     assert reservations.cassette_primary is None
 
   def test_a_dispense_records_that_it_got_far_enough_to_claim_one(self):
+    """A dispense records that it got far enough to claim one."""
     _, reservations = check([PeriDispense(volume=10, cassette_type="5uL")])
     assert reservations.dispense_reserved
 
@@ -278,6 +290,7 @@ class TestWhatTheInstrumentItselfRefuses:
   """Rules about the instrument and the plate, which stop the whole protocol."""
 
   def test_a_plate_the_instrument_does_not_accept_stops_everything(self):
+    """A plate the instrument does not accept stops everything."""
     report, _ = check(
       [ManifoldPrime(volume=40_000)],
       plate=PLATE_384,
@@ -289,6 +302,7 @@ class TestWhatTheInstrumentItselfRefuses:
     assert "cannot run" in str(report)
 
   def test_an_accepted_plate_runs(self):
+    """An accepted plate runs."""
     report, _ = check(
       [ManifoldPrime(volume=40_000)],
       plate=PLATE_96,
@@ -297,6 +311,7 @@ class TestWhatTheInstrumentItselfRefuses:
     assert report
 
   def test_a_restriction_the_instrument_was_not_asked_about_is_not_guessed(self):
+    """A restriction the instrument was not asked about is not guessed."""
     report, _ = check([ManifoldPrime(volume=40_000)], plate=PLATE_384)
     assert report
 
@@ -305,12 +320,14 @@ class TestWhatTheFirmwareKnows:
   """The per-model rule sets, which are data rather than code."""
 
   def test_the_models_do_not_check_identically(self):
+    """The models do not check identically."""
     assert rules_for(InstrumentFamily.MULTIFLO_FX) is MULTIFLO_FX
     assert rules_for(InstrumentFamily.EL406) is COMMON
     assert MULTIFLO_FX.basecode_step_types
     assert not COMMON.basecode_step_types
 
   def test_the_oldest_firmware_lacks_rules_the_others_have(self):
+    """The oldest firmware lacks rules the others have."""
     older = rules_for(InstrumentFamily.MULTIFLO)
     assert older.absent_checks
     assert not COMMON.absent_checks

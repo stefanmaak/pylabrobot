@@ -59,7 +59,7 @@ class PeriDispense(Step):
   volume: int = 10
   flow_rate: PeriFlowRate = "High"
   cassette_type: CassetteType | None = "Any"
-  positioning: Positioning = field(default_factory=lambda: Positioning(z=336))
+  positioning: Positioning = field(default_factory=lambda: Positioning(z_steps=333))
   pre_dispense: PreDispense = field(
     default_factory=lambda: PreDispense(enabled=True, volume=10, count=2)
   )
@@ -130,7 +130,9 @@ class PeriDispense(Step):
       flow_rate=PERI_FLOW_RATES[flow_rate],
       cassette_type=BYTE_TO_CASSETTE_TYPE.get(int(cassette)),
       positioning=Positioning(
-        z=definition.signed(z, 16), x=definition.signed(x, 16), y=definition.signed(y, 8)
+        z_steps=definition.signed(z, 16),
+        x_steps=definition.signed(x, 16),
+        y_steps=definition.signed(y, 8),
       ),
       pre_dispense=PreDispense(
         enabled=definition.flag(pre_enabled),
@@ -157,20 +159,20 @@ class PeriDispense(Step):
     """
     pump = NO_PUMP if self.peri_pump is None else PERI_PUMP_TO_BYTE[self.peri_pump]
     if settings.advanced_dispense_offsets:
-      offsets = i16(self.positioning.x)
+      offsets = i16(self.positioning.x_steps)
     else:
       cassette = (
         NO_CASSETTE_REQUIREMENT
         if self.cassette_type is None
         else CASSETTE_TYPE_TO_BYTE[self.cassette_type]
       )
-      offsets = u8(cassette) + i8(self.positioning.x)
+      offsets = u8(cassette) + i8(self.positioning.x_steps)
     return pad(
       u16(self.volume)
       + u8(PERI_FLOW_RATE_TO_BYTE[self.flow_rate])
       + offsets
-      + i8(self.positioning.y)
-      + i16(self.positioning.z)
+      + i8(self.positioning.y_steps)
+      + i16(self.positioning.z_steps)
       + u16(self.pre_dispense.wire_volume)
       + u8(self.pre_dispense.count)
       + self.columns.to_bytes()

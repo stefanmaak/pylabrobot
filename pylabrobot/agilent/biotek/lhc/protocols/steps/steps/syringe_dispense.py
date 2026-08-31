@@ -51,7 +51,7 @@ class SyringeDispense(Step):
   syringe: Syringe = "A"
   volume: int = 50
   flow_rate: int = 2
-  positioning: Positioning = field(default_factory=lambda: Positioning(z=336))
+  positioning: Positioning = field(default_factory=lambda: Positioning(z_steps=333))
   pre_dispense: PreDispense = field(default_factory=lambda: PreDispense(volume=50, count=2))
   pump_delay: int = 0
   columns: WellMask = field(default_factory=WellMask.all_columns)
@@ -122,7 +122,9 @@ class SyringeDispense(Step):
       volume=definition.number(volume, 16),
       flow_rate=definition.number(flow_rate, 8),
       positioning=Positioning(
-        z=definition.signed(z, 16), x=definition.signed(x, 16), y=definition.signed(y, 8)
+        z_steps=definition.signed(z, 16),
+        x_steps=definition.signed(x, 16),
+        y_steps=definition.signed(y, 8),
       ),
       pre_dispense=PreDispense(
         enabled=definition.flag(pre_enabled),
@@ -150,16 +152,16 @@ class SyringeDispense(Step):
       The payload.
     """
     if settings.advanced_dispense_offsets:
-      offset_x, length = i16(self.positioning.x), _WIDE_OFFSET_PAYLOAD_LENGTH
+      offset_x, length = i16(self.positioning.x_steps), _WIDE_OFFSET_PAYLOAD_LENGTH
     else:
-      offset_x, length = i8(self.positioning.x), _PAYLOAD_LENGTH
+      offset_x, length = i8(self.positioning.x_steps), _PAYLOAD_LENGTH
     payload = (
       u8(SYRINGE_TO_BYTE[self.syringe] - 1)
       + u16(self.volume)
       + u8(self.flow_rate)
       + offset_x
-      + i8(self.positioning.y)
-      + i16(self.positioning.z)
+      + i8(self.positioning.y_steps)
+      + i16(self.positioning.z_steps)
       + u16(self.pump_delay)
       + u16(self.pre_dispense.wire_volume)
       + u8(self.pre_dispense.count)

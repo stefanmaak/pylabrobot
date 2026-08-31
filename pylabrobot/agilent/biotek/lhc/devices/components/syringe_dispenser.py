@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from pylabrobot.agilent.biotek.lhc.devices.execution import run_steps
 from pylabrobot.agilent.biotek.lhc.devices.runtime import Runtime
+from pylabrobot.agilent.biotek.lhc.plate_geometry.plate_record import Head
 from pylabrobot.agilent.biotek.lhc.enums.steps.syringe import Syringe
 from pylabrobot.agilent.biotek.lhc.enums.steps.syringe_bottle import SyringeBottle
 from pylabrobot.agilent.biotek.lhc.protocols.steps.step_parts.groups import PreDispense, Submerge
@@ -28,6 +29,24 @@ class SyringeDispenser:
 
   def __init__(self, runtime: Runtime) -> None:
     self._runtime = runtime
+
+  def _at(self, head: Head) -> Positioning:
+    """Where a head works the plate on the carrier, when the caller names no position.
+
+    A step carries the height it works at outright, so a default height that suits one plate is too
+    deep on a shallower one. Taking it from the plate is what keeps a defaulted call safe on every
+    plate the instrument works.
+
+    Args:
+      head: Which head is doing the work.
+
+    Returns:
+      The nominal position for that head, with no offset across or along the well.
+
+    Raises:
+      RejectedError: If no plate has been set.
+    """
+    return Positioning(z_steps=self._runtime.plate_record.height_for(head))
 
   async def dispense(
     self,
@@ -49,7 +68,8 @@ class SyringeDispenser:
       flow_rate: How fast to dispense.
       syringe_bottle: Which bottle to draw from.
       pump_delay: How long the pump waits between wells, in ms.
-      positioning: Where in the well to dispense.
+      positioning: Where in the well to dispense. Defaults to the nominal height for this
+        head over the plate on the carrier, with no offset across or along the well.
       pre_dispense: Whether to pre-dispense first, at what volume and how many times.
       columns: Which columns to dispense into.
       rows: Which rows to dispense into. Only instruments that select rows use this.
@@ -64,9 +84,8 @@ class SyringeDispenser:
       syringe_bottle=syringe_bottle,
       pump_delay=pump_delay,
       selects_rows=rows is not None,
+      positioning=positioning if positioning is not None else self._at("dispenser"),
     )
-    if positioning is not None:
-      step.positioning = positioning
     if pre_dispense is not None:
       step.pre_dispense = pre_dispense
     if columns is not None:

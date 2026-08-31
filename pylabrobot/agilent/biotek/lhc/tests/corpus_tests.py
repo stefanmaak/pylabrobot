@@ -108,6 +108,7 @@ def test_the_entries_survive_being_written_again(path: Path):
 
 @pytest.mark.parametrize("path", readable(), ids=lambda path: path.name)
 def test_every_step_of_a_supported_instruments_protocol_reads(path: Path):
+  """Every step of a supported instruments protocol reads."""
   protocol = protocol_file.read(path)
   assert protocol.build_steps() or not protocol.device_entries
 

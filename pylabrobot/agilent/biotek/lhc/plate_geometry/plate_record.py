@@ -3,8 +3,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Literal
 
 from pylabrobot.agilent.biotek.lhc.enums.plates.plate_type import PlateType
+
+Head = Literal["dispenser", "manifold dispense", "manifold aspirate"]
+"""Which head a nominal height belongs to.
+
+A plate is worked from a different height by each of them, so asking for a height means saying
+which one is doing the work.
+"""
 
 
 @dataclass(frozen=True)
@@ -38,3 +46,23 @@ class PlateRecord:
   def wells(self) -> int:
     """How many wells the plate has."""
     return self.columns * self.rows
+
+  def height_for(self, head: Head) -> int:
+    """The nominal height this plate is worked from by one head.
+
+    A step carries the height it works at outright rather than an offset from anything, so this is
+    what a step should be given when the caller does not name a height of its own. Getting it from
+    the plate is what stops a height that suits one plate being used on a shallower one.
+
+    Args:
+      head: Which head is doing the work.
+
+    Returns:
+      The height, in motor steps.
+    """
+    heights: dict[Head, int] = {
+      "dispenser": self.dispenser_height,
+      "manifold dispense": self.manifold_dispense_height,
+      "manifold aspirate": self.manifold_aspirate_height,
+    }
+    return heights[head]

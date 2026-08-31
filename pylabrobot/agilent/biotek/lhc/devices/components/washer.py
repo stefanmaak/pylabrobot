@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from pylabrobot.agilent.biotek.lhc.devices.execution import run_steps
 from pylabrobot.agilent.biotek.lhc.devices.runtime import Runtime
+from pylabrobot.agilent.biotek.lhc.plate_geometry.plate_record import Head
 from pylabrobot.agilent.biotek.lhc.enums.steps.buffer import Buffer
 from pylabrobot.agilent.biotek.lhc.enums.steps.travel_rate import TravelRate
 from pylabrobot.agilent.biotek.lhc.enums.steps.wash_format import WashFormat
@@ -55,6 +56,67 @@ class PlateWasher:
   def __init__(self, runtime: Runtime) -> None:
     self._runtime = runtime
 
+  def _at(self, head: Head) -> Positioning:
+    """Where a head works the plate on the carrier, when the caller names no position.
+
+    A step carries the height it works at outright, so a default height that suits one plate is too
+    deep on a shallower one. Taking it from the plate is what keeps a defaulted call safe on every
+    plate the instrument works.
+
+    Args:
+      head: Which head is doing the work.
+
+    Returns:
+      The nominal position for that head, with no offset across or along the well.
+
+    Raises:
+      RejectedError: If no plate has been set.
+    """
+    return Positioning(z_steps=self._runtime.plate_record.height_for(head))
+
+  def _wash_aspirate(self) -> ManifoldAspirate:
+    """The aspirate a wash owns, at the height this plate is aspirated from.
+
+    Returns:
+      The aspirate, marked as one a wash owns so it stores no well selection.
+    """
+    return ManifoldAspirate(in_wash=True, positioning=self._at("manifold aspirate"))
+
+  def _wash_dispense(self) -> ManifoldDispense:
+    """The dispense a wash owns, at the height this plate is dispensed into.
+
+    Returns:
+      The dispense.
+    """
+    return ManifoldDispense(positioning=self._at("manifold dispense"))
+
+  def _strip_aspirate(self) -> StripAspirate:
+    """The aspirate a strip wash owns, at the height this plate is aspirated from.
+
+    Returns:
+      The aspirate, marked as one a wash owns.
+    """
+    return StripAspirate(in_wash=True, positioning=self._at("manifold aspirate"))
+
+  def _strip_dispense(self) -> StripDispense:
+    """The dispense a strip wash owns, at the height this plate is dispensed into.
+
+    Returns:
+      The dispense, marked as one a wash owns.
+    """
+    return StripDispense(in_wash=True, positioning=self._at("dispenser"))
+
+  def _syringe_dispense(self) -> SyringeDispense:
+    """The syringe dispense a 1536-well wash owns, at the height this plate is dispensed into.
+
+    Returns:
+      The dispense, keeping the pre-dispense the step type defaults to.
+    """
+    return SyringeDispense(
+      pre_dispense=PreDispense(enabled=True, volume=50, count=2),
+      positioning=self._at("dispenser"),
+    )
+
   async def wash(
     self,
     cycles: int = 3,
@@ -72,30 +134,33 @@ class PlateWasher:
     Args:
       cycles: How many wash cycles to run.
       wash_format: Whether to wash the whole plate, selected sectors or selected strips.
-      dispense: The dispense that refills the well each cycle.
-      aspirate: The aspirate that empties the well at the start of each cycle.
+      dispense: The dispense that refills the well each cycle. Defaults to one at the plate's
+        nominal dispensing height, which dispenses nothing until it is given a volume.
+      aspirate: The aspirate that empties the well at the start of each cycle. Defaults to one
+        at the plate's nominal aspirating height.
       stages: Which optional stages run.
       shake_soak: The pause after each dispense.
       bottom_wash: The dispense that washes the bottom of the well, when that stage runs.
-      final_aspirate: The aspirate that empties the well after the last cycle.
+        Defaults to one at the plate's nominal dispensing height.
+      final_aspirate: The aspirate that empties the well after the last cycle. Defaults to one
+        at the plate's nominal aspirating height.
       sectors: Which sectors to wash, when the format selects sectors.
 
     Raises:
       BiotekError: If the step cannot run, or fails while running.
     """
-    step = ManifoldWash(cycles=cycles, wash_format=wash_format)
-    if dispense is not None:
-      step.dispense = dispense
-    if aspirate is not None:
-      step.aspirate = aspirate
+    step = ManifoldWash(
+      cycles=cycles,
+      wash_format=wash_format,
+      bottom_wash=bottom_wash if bottom_wash is not None else self._wash_dispense(),
+      aspirate=aspirate if aspirate is not None else self._wash_aspirate(),
+      dispense=dispense if dispense is not None else self._wash_dispense(),
+      final_aspirate=final_aspirate if final_aspirate is not None else self._wash_aspirate(),
+    )
     if stages is not None:
       step.stages = stages
     if shake_soak is not None:
       step.shake_soak = shake_soak
-    if bottom_wash is not None:
-      step.bottom_wash = bottom_wash
-    if final_aspirate is not None:
-      step.final_aspirate = final_aspirate
     if sectors is not None:
       step.sectors = sectors
     await run_steps(self._runtime, [step])
@@ -117,7 +182,8 @@ class PlateWasher:
         this is the filtration time in seconds instead.
       vacuum_filtration: Whether to pull the wells through a filter plate instead of aspirating
         from above. Not available on a 1536-well plate.
-      positioning: Where in the well to aspirate.
+      positioning: Where in the well to aspirate. Defaults to the nominal height for this
+        head over the plate on the carrier, with no offset across or along the well.
       secondary: Whether to aspirate a second time, in what pattern and where.
       columns: Which columns to aspirate.
 
@@ -125,10 +191,11 @@ class PlateWasher:
       BiotekError: If the step cannot run, or fails while running.
     """
     step = ManifoldAspirate(
-      travel_rate=travel_rate, delay=delay, vacuum_filtration=vacuum_filtration
+      travel_rate=travel_rate,
+      delay=delay,
+      vacuum_filtration=vacuum_filtration,
+      positioning=positioning if positioning is not None else self._at("manifold aspirate"),
     )
-    if positioning is not None:
-      step.positioning = positioning
     if secondary is not None:
       step.secondary = secondary
     if columns is not None:
@@ -151,16 +218,20 @@ class PlateWasher:
       buffer: Which buffer inlet to draw from.
       flow_rate: How fast to dispense. The two slowest rates need the cell washing module and a
         96-tube dual-action manifold.
-      positioning: Where in the well to dispense.
+      positioning: Where in the well to dispense. Defaults to the nominal height for this
+        head over the plate on the carrier, with no offset across or along the well.
       pre_dispense: Whether to pre-dispense first, and at what volume and rate.
       vacuum: Whether to hold the vacuum off until a volume has been dispensed.
 
     Raises:
       BiotekError: If the step cannot run, or fails while running.
     """
-    step = ManifoldDispense(volume=volume, buffer=buffer, flow_rate=flow_rate)
-    if positioning is not None:
-      step.positioning = positioning
+    step = ManifoldDispense(
+      volume=volume,
+      buffer=buffer,
+      flow_rate=flow_rate,
+      positioning=positioning if positioning is not None else self._at("manifold dispense"),
+    )
     if pre_dispense is not None:
       step.pre_dispense = pre_dispense
     if vacuum is not None:
@@ -234,11 +305,14 @@ class PlateWasher:
       wash_format: Whether to wash the whole plate, selected sectors or selected strips.
       pre_dispense_before_volume: Volume per well in µL to pre-dispense before washing starts.
       pre_dispense_before_count: How many times to pre-dispense before washing starts.
-      dispense: The syringe dispense that refills the well each cycle.
-      aspirate: The aspirate that empties the well at the start of each cycle.
+      dispense: The syringe dispense that refills the well each cycle. Defaults to one at the
+        plate's nominal dispensing height, which dispenses nothing until it is given a volume.
+      aspirate: The aspirate that empties the well at the start of each cycle. Defaults to one
+        at the plate's nominal aspirating height.
       stages: Which optional stages run.
       shake_soak: The pause after each dispense.
-      final_aspirate: The aspirate that empties the well after the last cycle.
+      final_aspirate: The aspirate that empties the well after the last cycle. Defaults to one
+        at the plate's nominal aspirating height.
 
     Raises:
       BiotekError: If the step cannot run, or fails while running.
@@ -248,17 +322,14 @@ class PlateWasher:
       wash_format=wash_format,
       pre_dispense_before_volume=pre_dispense_before_volume,
       pre_dispense_before_count=pre_dispense_before_count,
+      aspirate=aspirate if aspirate is not None else self._wash_aspirate(),
+      dispense=dispense if dispense is not None else self._syringe_dispense(),
+      final_aspirate=final_aspirate if final_aspirate is not None else self._wash_aspirate(),
     )
-    if dispense is not None:
-      step.dispense = dispense
-    if aspirate is not None:
-      step.aspirate = aspirate
     if stages is not None:
       step.stages = stages
     if shake_soak is not None:
       step.shake_soak = shake_soak
-    if final_aspirate is not None:
-      step.final_aspirate = final_aspirate
     await run_steps(self._runtime, [step])
 
   async def strip_wash(
@@ -279,31 +350,34 @@ class PlateWasher:
     Args:
       cycles: How many wash cycles to run.
       wash_format: Whether to wash the whole plate, selected sectors or selected strips.
-      dispense: The dispense that refills the well each cycle.
-      aspirate: The aspirate that empties the well at the start of each cycle.
+      dispense: The dispense that refills the well each cycle. Defaults to one at the plate's
+        nominal dispensing height, which dispenses nothing until it is given a volume.
+      aspirate: The aspirate that empties the well at the start of each cycle. Defaults to one
+        at the plate's nominal aspirating height.
       stages: Which optional stages run.
       shake_soak: The pause after each dispense.
       bottom_wash: The dispense that washes the bottom of the well, when that stage runs.
-      final_aspirate: The aspirate that empties the well after the last cycle.
+        Defaults to one at the plate's nominal dispensing height.
+      final_aspirate: The aspirate that empties the well after the last cycle. Defaults to one
+        at the plate's nominal aspirating height.
       columns: Which columns to wash.
       rows: Which rows to wash.
 
     Raises:
       BiotekError: If the step cannot run, or fails while running.
     """
-    step = StripWash(cycles=cycles, wash_format=wash_format)
-    if dispense is not None:
-      step.dispense = dispense
-    if aspirate is not None:
-      step.aspirate = aspirate
+    step = StripWash(
+      cycles=cycles,
+      wash_format=wash_format,
+      bottom_wash=bottom_wash if bottom_wash is not None else self._strip_dispense(),
+      aspirate=aspirate if aspirate is not None else self._strip_aspirate(),
+      dispense=dispense if dispense is not None else self._strip_dispense(),
+      final_aspirate=final_aspirate if final_aspirate is not None else self._strip_aspirate(),
+    )
     if stages is not None:
       step.stages = stages
     if shake_soak is not None:
       step.shake_soak = shake_soak
-    if bottom_wash is not None:
-      step.bottom_wash = bottom_wash
-    if final_aspirate is not None:
-      step.final_aspirate = final_aspirate
     if columns is not None:
       step.columns = columns
     if rows is not None:
@@ -325,7 +399,8 @@ class PlateWasher:
       travel_rate: How fast the tips descend into the well. The strip washer offers two rates the
         wash manifold does not.
       delay: How long to keep aspirating once the tips are down, in ms.
-      positioning: Where in the well to aspirate.
+      positioning: Where in the well to aspirate. Defaults to the nominal height for this
+        head over the plate on the carrier, with no offset across or along the well.
       secondary: Whether to aspirate a second time, in what pattern and where.
       columns: Which columns to aspirate.
       rows: Which rows to aspirate.
@@ -333,9 +408,11 @@ class PlateWasher:
     Raises:
       BiotekError: If the step cannot run, or fails while running.
     """
-    step = StripAspirate(travel_rate=travel_rate, delay=delay)
-    if positioning is not None:
-      step.positioning = positioning
+    step = StripAspirate(
+      travel_rate=travel_rate,
+      delay=delay,
+      positioning=positioning if positioning is not None else self._at("manifold aspirate"),
+    )
     if secondary is not None:
       step.secondary = secondary
     if columns is not None:
@@ -359,7 +436,8 @@ class PlateWasher:
     Args:
       volume: Volume per well in µL.
       flow_rate: How fast to dispense.
-      positioning: Where in the well to dispense.
+      positioning: Where in the well to dispense. Defaults to the nominal height for this
+        head over the plate on the carrier, with no offset across or along the well.
       pre_dispense: Whether to pre-dispense first, at what volume, rate and how many times.
       vacuum: Whether to hold the vacuum off until a volume has been dispensed.
       columns: Which columns to dispense into.
@@ -368,9 +446,11 @@ class PlateWasher:
     Raises:
       BiotekError: If the step cannot run, or fails while running.
     """
-    step = StripDispense(volume=volume, flow_rate=flow_rate)
-    if positioning is not None:
-      step.positioning = positioning
+    step = StripDispense(
+      volume=volume,
+      flow_rate=flow_rate,
+      positioning=positioning if positioning is not None else self._at("dispenser"),
+    )
     if pre_dispense is not None:
       step.pre_dispense = pre_dispense
     if vacuum is not None:

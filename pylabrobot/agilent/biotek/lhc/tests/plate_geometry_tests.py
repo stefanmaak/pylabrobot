@@ -27,6 +27,7 @@ class TestTheOfferedPlates:
 
   @pytest.mark.parametrize("family", EVERY_FAMILY)
   def test_every_model_offers_something(self, family: InstrumentFamily):
+    """Every model offers something."""
     offered = plates_for(family)
     assert offered
     assert len({record.plate_type for record in offered}) == len(offered)
@@ -37,14 +38,17 @@ class TestTheOfferedPlates:
       assert record.dispenser_height == record.manifold_dispense_height
 
   def test_a_model_with_a_wash_manifold_measures_two_heights(self):
+    """A model with a wash manifold measures two heights."""
     record = find(PlateType.PLATE_96_WELL, InstrumentFamily.EL406)
     assert record is not None
     assert record.dispenser_height != record.manifold_dispense_height
 
   def test_a_format_a_model_does_not_offer_is_not_found(self):
+    """A format a model does not offer is not found."""
     assert find(PlateType.PLATE_6_WELL, InstrumentFamily.EL406) is None
 
   def test_a_record_knows_how_many_wells_it_has(self):
+    """A record knows how many wells it has."""
     record = find(PlateType.PLATE_384_WELL, InstrumentFamily.EL406)
     assert record is not None
     assert record.wells == 384
@@ -63,6 +67,7 @@ class TestResolvingLabware:
     ],
   )
   def test_columns_and_rows_decide_the_format(self, wells: int, plate_type: PlateType):
+    """Columns and rows decide the format."""
     assert resolve(make_plate(wells), InstrumentFamily.EL406).plate_type is plate_type
 
   def test_well_depth_separates_a_deep_well_plate_from_a_standard_one(self):
@@ -75,16 +80,19 @@ class TestResolvingLabware:
     assert deep.plate_type is PlateType.PLATE_96_DEEP_WELL
 
   def test_a_format_can_be_named_instead_of_resolved(self):
+    """A format can be named instead of resolved."""
     resolved = resolve(
       make_plate(384), InstrumentFamily.EL406, plate_type=PlateType.PLATE_384_WELL_PCR
     )
     assert resolved.plate_type is PlateType.PLATE_384_WELL_PCR
 
   def test_a_named_format_the_model_does_not_offer_is_refused(self):
+    """A named format the model does not offer is refused."""
     with pytest.raises(ValueError, match="does not offer"):
       resolve(make_plate(96), InstrumentFamily.EL406, plate_type=PlateType.PLATE_6_WELL)
 
   def test_labware_no_format_matches_is_refused_naming_what_is_offered(self):
+    """Labware no format matches is refused naming what is offered."""
     with pytest.raises(ValueError, match="works no 3x2 plate"):
       resolve(make_plate(6), InstrumentFamily.EL406)
 

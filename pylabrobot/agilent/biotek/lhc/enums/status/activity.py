@@ -1,3 +1,5 @@
+"""The timed phase a running step is in."""
+
 from __future__ import annotations
 
 import enum

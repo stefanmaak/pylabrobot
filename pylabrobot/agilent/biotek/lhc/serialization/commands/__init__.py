@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from pylabrobot.agilent.biotek.lhc.serialization.commands.configuration import (
   ByteQuery,
-  ByteWrite,
   FlagQuery,
   GetSyringeBoxInfo,
   SelectorQuery,
@@ -15,7 +14,6 @@ from pylabrobot.agilent.biotek.lhc.serialization.commands.diagnostics import (
   HomeVerifyMotors,
   ResetInstrument,
   RunSelfCheck,
-  SetSensorEnabled,
 )
 from pylabrobot.agilent.biotek.lhc.serialization.commands.queries import (
   FirmwareVersion,
@@ -37,7 +35,6 @@ from pylabrobot.agilent.biotek.lhc.serialization.commands.run_control import (
 __all__ = [
   "AbortStep",
   "ByteQuery",
-  "ByteWrite",
   "ExitProtocol",
   "FirmwareVersion",
   "FlagQuery",
@@ -56,6 +53,5 @@ __all__ = [
   "RunStep",
   "SelectorQuery",
   "SelectorWrite",
-  "SetSensorEnabled",
   "SyringeBox",
 ]

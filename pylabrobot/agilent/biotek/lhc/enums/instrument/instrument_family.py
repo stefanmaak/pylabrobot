@@ -1,3 +1,5 @@
+"""Which hardware family a model belongs to."""
+
 from __future__ import annotations
 
 import enum

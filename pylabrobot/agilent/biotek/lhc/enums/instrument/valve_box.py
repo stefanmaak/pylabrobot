@@ -1,3 +1,5 @@
+"""Which valve box is fitted."""
+
 from __future__ import annotations
 
 import enum

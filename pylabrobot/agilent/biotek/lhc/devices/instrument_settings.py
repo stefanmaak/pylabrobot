@@ -18,9 +18,14 @@ from pylabrobot.agilent.biotek.lhc.enums.instrument.valve_box import ValveBox
 from pylabrobot.agilent.biotek.lhc.enums.instrument.washer_manifold import WasherManifold
 
 
-@dataclass
+@dataclass(frozen=True)
 class InstrumentSettings:
   """The options an instrument is fitted with.
+
+  Read-only, because what it describes is: of the whole command vocabulary only the peristaltic
+  cassettes can be written, and those are reconciled when a batch opens rather than held here.
+  Everything else is hardware somebody fitted, or configuration set at the instrument itself, so a
+  record that could be edited would only ever mislead. A different instrument is a different record.
 
   Attributes:
     family: Which instrument model this is.

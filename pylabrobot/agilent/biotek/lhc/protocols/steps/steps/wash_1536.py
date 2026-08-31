@@ -177,7 +177,7 @@ def _aspirate_extract(aspirate: ManifoldAspirate) -> bytes:
   return (
     u16(aspirate.delay)
     + u8(TRAVEL_RATE_TO_BYTE[aspirate.travel_rate])
-    + i8(aspirate.positioning.x)
-    + i8(aspirate.positioning.y)
-    + i16(aspirate.positioning.z)
+    + i8(aspirate.positioning.x_steps)
+    + i8(aspirate.positioning.y_steps)
+    + i16(aspirate.positioning.z_steps)
   )

@@ -377,7 +377,7 @@ MESSAGES: dict[int, str] = {
   0x6010: "The data is invalid or out-of-range.",
   0x6011: "This step type can not be downloaded.",
   0x6012: (
-    "Illegal characters in protocol name; valid characters are letters, numbers, " "spaces, or _-%&"
+    "Illegal characters in protocol name; valid characters are letters, numbers, spaces, or _-%&"
   ),
   0x6013: "The protocol name length must be 16 characters or less.",
   0x6015: "The specified volume exceeds the cassette maximum limit.",

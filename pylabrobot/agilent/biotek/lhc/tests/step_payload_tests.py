@@ -64,6 +64,7 @@ STEP_TYPES: list[StepType] = sorted(LENGTHS, key=lambda member: member.value)
 
 @pytest.mark.parametrize("step_type", STEP_TYPES)
 def test_a_payload_is_the_length_its_step_type_sends(step_type: StepType):
+  """A payload is the length its step type sends."""
   assert len(STEP_CLASSES[step_type]().to_bytes(SETTINGS)) == LENGTHS[step_type]
 
 
@@ -81,7 +82,7 @@ def test_the_wider_offset_range_repacks_a_peristaltic_dispense():
   """The offset across the well goes from one byte to two when the dispensers take the wider range,
   which moves every field after it. The payload is the same length: the byte the offset grows into
   was padding."""
-  step = PeriDispense(positioning=Positioning(x=-30))
+  step = PeriDispense(positioning=Positioning(x_steps=-30))
   narrow = step.to_bytes(SETTINGS)
   wide = step.to_bytes(WIDER_OFFSETS)
   assert narrow != wide
@@ -90,12 +91,13 @@ def test_the_wider_offset_range_repacks_a_peristaltic_dispense():
 
 def test_the_wider_offset_range_lengthens_a_syringe_dispense():
   """Here there was no padding to grow into, so the payload itself is a byte longer."""
-  step = SyringeDispense(positioning=Positioning(x=-30))
+  step = SyringeDispense(positioning=Positioning(x_steps=-30))
   assert len(step.to_bytes(SETTINGS)) == 25
   assert len(step.to_bytes(WIDER_OFFSETS)) == 26
 
 
 def test_a_strip_dispense_sends_its_vacuum_volume_whatever_manifold_is_fitted():
+  """A strip dispense sends its vacuum volume whatever manifold is fitted."""
   fitted = InstrumentSettings(strip_washer_manifold=StripWasherManifold.PLATE_96_WELL)
   step = StripDispense(volume=50)
   assert len(step.to_bytes(SETTINGS)) == len(step.to_bytes(fitted))
@@ -163,6 +165,7 @@ def test_a_syringe_and_its_bottle_go_out_one_less_than_they_are_named(
 
 
 def test_shake_and_soak_durations_are_seconds():
+  """Shake and soak durations are seconds."""
   payload = ShakeSoak(
     shake=Shake(enabled=True, duration=5), soak=Soak(enabled=True, duration=30)
   ).to_bytes(SETTINGS)
@@ -182,6 +185,7 @@ def test_shake_and_soak_durations_are_seconds():
 def test_a_shake_names_its_intensity_and_axis_by_number(
   intensity: ShakeIntensity, axis: ShakeAxis, intensity_byte: int, axis_byte: int
 ):
+  """A shake names its intensity and axis by number."""
   payload = ShakeSoak(
     shake=Shake(enabled=True, duration=5, axis=axis, intensity=intensity)
   ).to_bytes(SETTINGS)

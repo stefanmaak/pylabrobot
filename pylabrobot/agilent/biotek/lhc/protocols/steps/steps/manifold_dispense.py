@@ -44,7 +44,7 @@ class ManifoldDispense(Step):
   buffer: Buffer = "A"
   volume: int = 0
   flow_rate: int = 7
-  positioning: Positioning = field(default_factory=lambda: Positioning(z=120))
+  positioning: Positioning = field(default_factory=lambda: Positioning(z_steps=120))
   pre_dispense: PreDispense = field(default_factory=lambda: PreDispense(volume=0, flow_rate=9))
   vacuum: VacuumDelay = field(default_factory=VacuumDelay)
   check_buffer: bool = True
@@ -102,7 +102,9 @@ class ManifoldDispense(Step):
       volume=definition.number(volume, 16),
       flow_rate=definition.number(flow_rate, 8),
       positioning=Positioning(
-        z=definition.signed(z, 16), x=definition.signed(x, 8), y=definition.signed(y, 8)
+        z_steps=definition.signed(z, 16),
+        x_steps=definition.signed(x, 8),
+        y_steps=definition.signed(y, 8),
       ),
       pre_dispense=PreDispense(
         enabled=definition.flag(pre_enabled),
@@ -128,9 +130,9 @@ class ManifoldDispense(Step):
       u8(ord(self.buffer))
       + u16(self.volume)
       + u8(self.flow_rate)
-      + i8(self.positioning.x)
-      + i8(self.positioning.y)
-      + i16(self.positioning.z)
+      + i8(self.positioning.x_steps)
+      + i8(self.positioning.y_steps)
+      + i16(self.positioning.z_steps)
       + u16(self.pre_dispense.wire_volume)
       + u8(self.pre_dispense.flow_rate)
       + u16(self.vacuum.wire_volume),

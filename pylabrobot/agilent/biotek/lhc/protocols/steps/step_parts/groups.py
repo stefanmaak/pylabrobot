@@ -98,7 +98,7 @@ class SecondaryAspirate:
   """
 
   pattern: SecondaryAspiratePattern = "None"
-  positioning: Positioning = field(default_factory=lambda: Positioning(z=30))
+  positioning: Positioning = field(default_factory=lambda: Positioning(z_steps=30))
 
   @property
   def enabled(self) -> bool:

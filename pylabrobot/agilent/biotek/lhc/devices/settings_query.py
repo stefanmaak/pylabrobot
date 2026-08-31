@@ -15,6 +15,13 @@ import logging
 
 from pylabrobot.agilent.biotek.lhc.comm.link import Link
 from pylabrobot.agilent.biotek.lhc.devices.instrument_settings import InstrumentSettings
+from pylabrobot.agilent.biotek.lhc.devices.queries import (
+  answers,
+  byte,
+  flag,
+  optional_byte,
+  optional_flag,
+)
 from pylabrobot.agilent.biotek.lhc.enums.instrument.basecode import Basecode
 from pylabrobot.agilent.biotek.lhc.enums.instrument.instrument_family import InstrumentFamily
 from pylabrobot.agilent.biotek.lhc.enums.instrument.strip_washer_manifold import StripWasherManifold
@@ -24,11 +31,8 @@ from pylabrobot.agilent.biotek.lhc.enums.instrument.syringe_manifold import Syri
 from pylabrobot.agilent.biotek.lhc.enums.instrument.valve_box import ValveBox
 from pylabrobot.agilent.biotek.lhc.enums.instrument.washer_manifold import WasherManifold
 from pylabrobot.agilent.biotek.lhc.enums.steps.peri_pump import PERI_PUMP_TO_BYTE, PeriPump
-from pylabrobot.agilent.biotek.lhc.error_handling import BiotekError
 from pylabrobot.agilent.biotek.lhc.serialization.command_numbers import CommandNumber
 from pylabrobot.agilent.biotek.lhc.serialization.commands.configuration import (
-  ByteQuery,
-  FlagQuery,
   GetSyringeBoxInfo,
   SelectorQuery,
   SyringeBox,
@@ -73,20 +77,20 @@ async def _read_washer(link: Link, family: InstrumentFamily) -> InstrumentSettin
   Raises:
     BiotekError: If an option cannot be read.
   """
-  valve_box = ValveBox(await _byte(link, CommandNumber.GET_EXT_VALVE_MODULE_INSTALLED))
+  valve_box = ValveBox(await byte(link, CommandNumber.GET_EXT_VALVE_MODULE_INSTALLED))
   return InstrumentSettings(
     family=family,
-    washer_manifold=WasherManifold(await _byte(link, CommandNumber.GET_WASHER_MANIFOLD_INSTALLED)),
+    washer_manifold=WasherManifold(await byte(link, CommandNumber.GET_WASHER_MANIFOLD_INSTALLED)),
     syringe_box=SyringeBoxType.NOT_INSTALLED,
     syringe_manifold=SyringeManifold.NOT_INSTALLED,
     buffer_switching=valve_box is not ValveBox.NOT_INSTALLED,
     valve_box=valve_box,
-    vacuum_filtration=await _flag(link, CommandNumber.GET_VACUUM_FILTRATION_INSTALLED),
+    vacuum_filtration=await flag(link, CommandNumber.GET_VACUUM_FILTRATION_INSTALLED),
     peri_pump=False,
     peri_pump_2=False,
-    ultrasonic=await _flag(link, CommandNumber.GET_ULTRASONIC_CLEANER_INSTALLED),
-    cell_washing=await _flag(link, CommandNumber.GET_CELL_WASHING_INSTALLED),
-    y_axis_installed=await _flag(link, CommandNumber.GET_Y_AXIS_INSTALLED),
+    ultrasonic=await flag(link, CommandNumber.GET_ULTRASONIC_CLEANER_INSTALLED),
+    cell_washing=await flag(link, CommandNumber.GET_CELL_WASHING_INSTALLED),
+    y_axis_installed=await flag(link, CommandNumber.GET_Y_AXIS_INSTALLED),
     half_ul_enabled=False,
     strip_washer_manifold=StripWasherManifold.NOT_INSTALLED,
   )
@@ -109,21 +113,19 @@ async def _read_dispenser(link: Link, family: InstrumentFamily) -> InstrumentSet
     BiotekError: If an option cannot be read.
   """
   washes = family is InstrumentFamily.EL406
-  syringe_manifold = SyringeManifold(
-    await _byte(link, CommandNumber.GET_SYRINGE_MANIFOLD_INSTALLED)
-  )
+  syringe_manifold = SyringeManifold(await byte(link, CommandNumber.GET_SYRINGE_MANIFOLD_INSTALLED))
   box = await _syringe_box(link)
   primary = await _peri_installed(link, "Primary")
   secondary = False if washes else await _peri_installed(link, "Secondary")
   valve_box = (
-    ValveBox(await _byte(link, CommandNumber.GET_EXT_VALVE_MODULE_INSTALLED))
+    ValveBox(await byte(link, CommandNumber.GET_EXT_VALVE_MODULE_INSTALLED))
     if washes
     else ValveBox.NOT_INSTALLED
   )
   return InstrumentSettings(
     family=family,
     washer_manifold=(
-      WasherManifold(await _byte(link, CommandNumber.GET_WASHER_MANIFOLD_INSTALLED))
+      WasherManifold(await byte(link, CommandNumber.GET_WASHER_MANIFOLD_INSTALLED))
       if washes
       else WasherManifold.NOT_INSTALLED
     ),
@@ -132,16 +134,16 @@ async def _read_dispenser(link: Link, family: InstrumentFamily) -> InstrumentSet
     buffer_switching=valve_box is not ValveBox.NOT_INSTALLED,
     valve_box=valve_box,
     vacuum_filtration=(
-      await _flag(link, CommandNumber.GET_VACUUM_FILTRATION_INSTALLED) if washes else False
+      await flag(link, CommandNumber.GET_VACUUM_FILTRATION_INSTALLED) if washes else False
     ),
     peri_pump=primary,
     peri_pump_2=secondary,
     ultrasonic=(
-      await _flag(link, CommandNumber.GET_ULTRASONIC_CLEANER_INSTALLED) if washes else False
+      await flag(link, CommandNumber.GET_ULTRASONIC_CLEANER_INSTALLED) if washes else False
     ),
-    cell_washing=(await _flag(link, CommandNumber.GET_CELL_WASHING_INSTALLED) if washes else False),
+    cell_washing=(await flag(link, CommandNumber.GET_CELL_WASHING_INSTALLED) if washes else False),
     y_axis_installed=True,
-    half_ul_enabled=bool(await _optional_flag(link, CommandNumber.GET_IS_PERI_HALF_UL_SUPPORTED)),
+    half_ul_enabled=bool(await optional_flag(link, CommandNumber.GET_IS_PERI_HALF_UL_SUPPORTED)),
     strip_washer_manifold=StripWasherManifold.NOT_INSTALLED,
     syringe_box_size=SyringeBoxSize(box.box_size),
   )
@@ -166,16 +168,14 @@ async def _read_strip_washer_and_firmware(
   """
   manifold = settings.strip_washer_manifold
   single_well = settings.single_well_enabled
-  if await _optional_flag(link, CommandNumber.IS_STRIP_WASHER_BOX_CONNECTED) and (
-    await _optional_flag(link, CommandNumber.GET_STRIP_WASHER_HW_INSTALLED)
+  if await optional_flag(link, CommandNumber.IS_STRIP_WASHER_BOX_CONNECTED) and (
+    await optional_flag(link, CommandNumber.GET_STRIP_WASHER_HW_INSTALLED)
   ):
-    fitted = await _optional_byte(link, CommandNumber.GET_STRIP_WASHER_MANIFOLD_TYPE)
+    fitted = await optional_byte(link, CommandNumber.GET_STRIP_WASHER_MANIFOLD_TYPE)
     if fitted is not None:
       manifold = StripWasherManifold(fitted)
-    single_well = bool(
-      await _optional_flag(link, CommandNumber.GET_SINGLE_WELL_DISPENSER_INSTALLED)
-    )
-  basecode = await _optional_byte(link, CommandNumber.GET_WHICH_BASECODE_IS_INSTALLED)
+    single_well = bool(await optional_flag(link, CommandNumber.GET_SINGLE_WELL_DISPENSER_INSTALLED))
+  basecode = await optional_byte(link, CommandNumber.GET_WHICH_BASECODE_IS_INSTALLED)
   return InstrumentSettings(
     family=settings.family,
     washer_manifold=settings.washer_manifold,
@@ -193,60 +193,9 @@ async def _read_strip_washer_and_firmware(
     strip_washer_manifold=manifold,
     single_well_enabled=single_well,
     peri_wash_enabled=basecode == Basecode.PERI_WASH,
-    advanced_dispense_offsets=await _answers(link, CommandNumber.GET_FLUID_TRACKING_ENABLED),
+    advanced_dispense_offsets=await answers(link, CommandNumber.GET_FLUID_TRACKING_ENABLED),
     syringe_box_size=settings.syringe_box_size,
   )
-
-
-async def _byte(link: Link, number: CommandNumber) -> int:
-  """Read a one-byte option.
-
-  Args:
-    link: The open link to the instrument.
-    number: Which option to read.
-
-  Returns:
-    The byte.
-
-  Raises:
-    BiotekError: If the option cannot be read.
-  """
-  command = ByteQuery(number)
-  return command.parse(await link.request(command, operation=number.name))
-
-
-async def _flag(link: Link, number: CommandNumber) -> bool:
-  """Read an option that is fitted or not.
-
-  Args:
-    link: The open link to the instrument.
-    number: Which option to read.
-
-  Returns:
-    Whether it is fitted.
-
-  Raises:
-    BiotekError: If the option cannot be read.
-  """
-  command = FlagQuery(number)
-  return command.parse_flag(await link.request(command, operation=number.name))
-
-
-async def _peri_installed(link: Link, pump: PeriPump) -> bool:
-  """Read whether a peristaltic pump is fitted.
-
-  Args:
-    link: The open link to the instrument.
-    pump: Which pump to ask about.
-
-  Returns:
-    Whether it is fitted.
-
-  Raises:
-    BiotekError: If the answer cannot be read.
-  """
-  command = SelectorQuery(CommandNumber.GET_SELECTED_PERI_INSTALLED, PERI_PUMP_TO_BYTE[pump])
-  return command.parse_flag(await link.request(command, operation=f"peri pump {pump.lower()}"))
 
 
 async def _syringe_box(link: Link) -> SyringeBox:
@@ -265,50 +214,18 @@ async def _syringe_box(link: Link) -> SyringeBox:
   return command.parse(await link.request(command, operation="syringe box"))
 
 
-async def _optional_byte(link: Link, number: CommandNumber) -> int | None:
-  """Read a one-byte option that not every firmware answers for.
+async def _peri_installed(link: Link, pump: PeriPump) -> bool:
+  """Read whether a peristaltic pump is fitted.
 
   Args:
     link: The open link to the instrument.
-    number: Which option to read.
+    pump: Which pump to ask about.
 
   Returns:
-    The byte, or None when the instrument would not answer -- either refusing the query, or
-    acknowledging it and sending no value back, which older firmware does for a query it does
-    not implement.
+    Whether it is fitted.
+
+  Raises:
+    BiotekError: If the answer cannot be read.
   """
-  try:
-    return await _byte(link, number)
-  except (BiotekError, ValueError) as error:
-    logger.debug("%s does not answer %s: %s", link.name, number.name, error)
-    return None
-
-
-async def _optional_flag(link: Link, number: CommandNumber) -> bool | None:
-  """Read an option that not every firmware answers for.
-
-  Args:
-    link: The open link to the instrument.
-    number: Which option to read.
-
-  Returns:
-    Whether it is fitted, or None when the instrument would not answer.
-  """
-  answer = await _optional_byte(link, number)
-  return None if answer is None else bool(answer)
-
-
-async def _answers(link: Link, number: CommandNumber) -> bool:
-  """Whether the instrument answers a query at all, rather than what it answers.
-
-  One option is reported this way: a firmware that has it answers, and one that does not refuses
-  the query.
-
-  Args:
-    link: The open link to the instrument.
-    number: Which query to send.
-
-  Returns:
-    Whether it was answered.
-  """
-  return await _optional_byte(link, number) is not None
+  command = SelectorQuery(CommandNumber.GET_SELECTED_PERI_INSTALLED, PERI_PUMP_TO_BYTE[pump])
+  return command.parse_flag(await link.request(command, operation=f"peri pump {pump.lower()}"))

@@ -1,3 +1,5 @@
+"""Which operation a protocol step performs."""
+
 from __future__ import annotations
 
 import enum

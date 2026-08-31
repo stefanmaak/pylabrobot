@@ -1,3 +1,5 @@
+"""Which peristaltic pump a step drives."""
+
 from __future__ import annotations
 
 from typing import Literal

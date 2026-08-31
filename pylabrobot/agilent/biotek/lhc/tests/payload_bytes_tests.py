@@ -76,6 +76,7 @@ def test_the_table_covers_every_step_type():
 
 
 def test_the_table_has_no_repeated_definitions():
+  """The table has no repeated definitions."""
   definitions = [definition for _, definition, _ in ROWS]
   assert len(set(definitions)) == len(definitions)
 
@@ -86,6 +87,7 @@ def test_the_table_has_no_repeated_definitions():
   ids=[f"{kind}-{index}" for index, (kind, _, _) in enumerate(ROWS)],
 )
 def test_a_step_sends_the_bytes_it_should(definition: str, expected: str):
+  """A step sends the bytes it should."""
   assert step_from_definition(definition).to_bytes(SETTINGS).hex() == expected
 
 
@@ -146,8 +148,8 @@ def wash(
       in_wash=True,
       travel_rate=cast(TravelRate, travel),
       delay=0,
-      positioning=Positioning(z=asp_z, x=asp_x, y=asp_y),
-      secondary=SecondaryAspirate(pattern="None", positioning=Positioning(z=secondary_z)),
+      positioning=Positioning(z_steps=asp_z, x_steps=asp_x, y_steps=asp_y),
+      secondary=SecondaryAspirate(pattern="None", positioning=Positioning(z_steps=secondary_z)),
     )
 
   def dispense() -> ManifoldDispense:
@@ -160,7 +162,7 @@ def wash(
       buffer="A",
       volume=volume,
       flow_rate=flow,
-      positioning=Positioning(z=disp_z),
+      positioning=Positioning(z_steps=disp_z),
       pre_dispense=PreDispense(enabled=False, volume=0, flow_rate=9),
       vacuum=VacuumDelay(enabled=False, volume=0),
     )
@@ -253,6 +255,7 @@ WASHES: list[tuple[str, dict[str, Any], str]] = [
   ids=[label for label, _, _ in WASHES],
 )
 def test_a_wash_sends_the_bytes_it_should(arguments: dict[str, Any], expected: str):
+  """A wash sends the bytes it should."""
   assert wash(**arguments).to_bytes(SETTINGS).hex() == expected
 
 

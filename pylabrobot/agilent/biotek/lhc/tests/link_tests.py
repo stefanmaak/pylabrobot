@@ -67,10 +67,12 @@ class TestChoosingATransport:
     assert transport_for("/dev/ttyS4").port == "/dev/ttyS4"
 
   def test_no_port_is_an_error(self):
+    """No port is an error."""
     with pytest.raises(ValueError, match="no port"):
       transport_for("")
 
   def test_a_link_needs_either_a_port_or_a_transport(self):
+    """A link needs either a port or a transport."""
     with pytest.raises(ValueError, match="either a port or a transport"):
       Link()
 
@@ -79,15 +81,18 @@ class TestTheFrame:
   """The bytes around a payload, which every command shares."""
 
   def test_the_checksum_covers_the_header_and_the_payload(self):
+    """The checksum covers the header and the payload."""
     header = Header(number=115, payload_length=2)
     assert checksum(header.to_bytes(), b"\x01\x02") != checksum(header.to_bytes(), b"\x01\x03")
 
   def test_a_header_packs_and_unpacks(self):
+    """A header packs and unpacks."""
     header = Header(number=141, payload_length=1, check=0x1234)
     assert len(header.to_bytes()) == HEADER_LENGTH
     assert Header.from_bytes(header.to_bytes()) == header
 
   def test_a_command_frames_itself_as_a_header_and_its_payload(self):
+    """A command frames itself as a header and its payload."""
     command = Command(number=141, payload=b"\x04")
     framed = command.to_bytes()
     assert len(framed) == HEADER_LENGTH + 1
@@ -95,6 +100,7 @@ class TestTheFrame:
     assert framed[HEADER_LENGTH:] == b"\x04"
 
   def test_a_reply_carries_its_status_before_its_answer(self):
+    """A reply carries its status before its answer."""
     command = Command(number=256)
     assert command.parse_reply((0).to_bytes(2, "little") + b"abc") == (0, b"abc")
 
@@ -108,11 +114,13 @@ class TestOneExchange(unittest.IsolatedAsyncioTestCase):
   """Sending a command over the link and reading what comes back."""
 
   async def test_a_closed_link_refuses_to_send(self):
+    """A closed link refuses to send."""
     link, _ = fake_link()
     with self.assertRaisesRegex(LinkError, "not open"):
       await link.request(Ping())
 
   async def test_opening_twice_does_nothing(self):
+    """Opening twice does nothing."""
     link, io = fake_link()
     await link.setup()
     await link.setup()
@@ -120,6 +128,7 @@ class TestOneExchange(unittest.IsolatedAsyncioTestCase):
     self.assertTrue(io.is_open)
 
   async def test_closing_a_closed_link_does_nothing(self):
+    """Closing a closed link does nothing."""
     link, _ = fake_link()
     await link.stop()
     self.assertFalse(link.is_open)
@@ -132,12 +141,14 @@ class TestOneExchange(unittest.IsolatedAsyncioTestCase):
     self.assertEqual(io.payload_of(CommandNumber.INIT_PROTOCOL), b"\x04")
 
   async def test_an_answer_comes_back_with_the_status_split_off(self):
+    """An answer comes back with the status split off."""
     link, _ = fake_link(answers={CommandNumber.GET_SERIAL_NUMBER: b"SN0001".ljust(24)})
     await link.setup()
     command = GetSerialNumber()
     self.assertEqual(command.parse(await link.request(command)), "SN0001")
 
   async def test_a_status_the_instrument_reports_is_raised_as_what_failed(self):
+    """A status the instrument reports is raised as what failed."""
     link, _ = fake_link(status=0x6029)
     await link.setup()
     with self.assertRaises(RejectedError):
@@ -168,6 +179,8 @@ class TestOneExchange(unittest.IsolatedAsyncioTestCase):
       await link.request(Ping())
 
   async def test_an_instrument_that_never_acknowledges_times_out(self):
+    """An instrument that never acknowledges times out."""
+
     class Silent(FakeInstrument):
       """A fake instrument that takes a command and says nothing."""
 
@@ -187,6 +200,8 @@ class TestOneExchange(unittest.IsolatedAsyncioTestCase):
       await link.request(Ping())
 
   async def test_a_reply_that_stops_part_way_times_out(self):
+    """A reply that stops part way times out."""
+
     class Truncating(FakeInstrument):
       """A fake instrument whose reply stops after the acknowledgement."""
 
@@ -210,6 +225,8 @@ class TestOneExchange(unittest.IsolatedAsyncioTestCase):
       await link.request(Command(number=int(CommandNumber.PING)))
 
   async def test_a_reply_that_does_not_add_up_is_refused(self):
+    """A reply that does not add up is refused."""
+
     class Corrupting(FakeInstrument):
       """A fake instrument whose replies do not match their own checksum."""
 

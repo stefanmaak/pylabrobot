@@ -48,6 +48,7 @@ class TestReadingADocument:
   """What a protocol file's own records become."""
 
   def test_the_protocol_carries_what_the_file_says_about_itself(self):
+    """The protocol carries what the file says about itself."""
     protocol = protocol_file.from_xml(DOCUMENT)
     assert protocol.protocol_name == "RINSE"
     assert protocol.instrument_name == "EL406"
@@ -56,12 +57,14 @@ class TestReadingADocument:
     assert protocol.plate_type_number == 4
 
   def test_every_entry_is_kept_including_the_ones_that_do_not_operate_the_instrument(self):
+    """Every entry is kept including the ones that do not operate the instrument."""
     protocol = protocol_file.from_xml(DOCUMENT)
     assert len(protocol.entries) == 2
     assert protocol.entries[0].action is StepAction.REMARK
     assert protocol.entries[1].action is StepAction.CUSTOM
 
   def test_only_the_entries_that_operate_the_instrument_are_steps(self):
+    """Only the entries that operate the instrument are steps."""
     protocol = protocol_file.from_xml(DOCUMENT)
     assert len(protocol.device_entries) == 1
     assert protocol.device_entries[0].step_type is StepType.MANIFOLD_PRIME
@@ -82,11 +85,13 @@ class TestReadingADocument:
       protocol.build_steps()
 
   def test_an_unknown_action_is_refused(self):
+    """An unknown action is refused."""
     document = DOCUMENT.replace("eStepActionRemark", "eStepActionSomethingElse")
     with pytest.raises(ValueError, match="unknown step action"):
       protocol_file.from_xml(document)
 
   def test_text_that_is_not_a_protocol_is_refused(self):
+    """Text that is not a protocol is refused."""
     with pytest.raises(ValueError, match="not a protocol document"):
       protocol_file.from_xml("<nonsense")
 
@@ -95,6 +100,7 @@ class TestWritingADocument:
   """Turning a protocol back into the text a file holds."""
 
   def test_a_document_round_trips(self):
+    """A document round trips."""
     protocol = protocol_file.from_xml(DOCUMENT)
     assert protocol_file.from_xml(protocol_file.to_xml(protocol)).entries == protocol.entries
 
@@ -107,6 +113,7 @@ class TestWritingADocument:
     assert "Rinse the manifold" in written
 
   def test_a_protocol_built_from_steps_gets_entries_for_them(self):
+    """A protocol built from steps gets entries for them."""
     steps: list[Step] = [ManifoldPrime(volume=40_000)]
     entries = protocol_file.entries_for(steps)
     assert len(entries) == 1
@@ -115,6 +122,7 @@ class TestWritingADocument:
     assert entries[0].definition.startswith("DV103|9|")
 
   def test_a_protocol_with_no_entries_is_written_from_its_steps(self):
+    """A protocol with no entries is written from its steps."""
     built: list[Step] = [ManifoldPrime(volume=40_000)]
     protocol = Protocol(steps=built, protocol_name="BUILT")
     written = protocol_file.to_xml(protocol)
@@ -126,6 +134,7 @@ class TestTheCipher:
   """What a real file adds on top of the document."""
 
   def test_a_document_survives_being_encrypted_and_read_back(self):
+    """A document survives being encrypted and read back."""
     encryption = pytest.importorskip(
       "pylabrobot.agilent.biotek.lhc.protocols.read_write_utilities.encryption"
     )
@@ -147,6 +156,7 @@ class TestARoundTripThroughEverything:
   """A protocol built here, written, read back, and run against the same instrument."""
 
   def test_steps_survive_a_write_and_a_read(self):
+    """Steps survive a write and a read."""
     original: list[Step] = [ManifoldPrime(volume=40_000, buffer="C", flow_rate=5)]
     protocol = Protocol(steps=original, entries=protocol_file.entries_for(original))
     read_back = protocol_file.from_xml(protocol_file.to_xml(protocol))

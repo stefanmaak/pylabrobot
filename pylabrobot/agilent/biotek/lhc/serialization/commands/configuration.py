@@ -103,19 +103,6 @@ class SelectorQuery(Command):
     return bool(self.parse(answer))
 
 
-class ByteWrite(Command):
-  """A command that sends one byte and reads back nothing but the status."""
-
-  def __init__(self, number: CommandNumber, value: int) -> None:
-    """Build the command.
-
-    Args:
-      number: Which command to send.
-      value: The byte to send.
-    """
-    super().__init__(number=number, payload=bytes([value]))
-
-
 class SelectorWrite(Command):
   """A command that sends a selector byte and a value byte, and reads back only the status."""
 

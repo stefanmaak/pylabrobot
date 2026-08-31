@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from pylabrobot.agilent.biotek.lhc.devices.execution import run_steps
 from pylabrobot.agilent.biotek.lhc.devices.runtime import Runtime
+from pylabrobot.agilent.biotek.lhc.plate_geometry.plate_record import Head
 from pylabrobot.agilent.biotek.lhc.enums.steps.cassette_head import CassetteHead
 from pylabrobot.agilent.biotek.lhc.enums.steps.cassette_type import CassetteType
 from pylabrobot.agilent.biotek.lhc.enums.steps.peri_flow_rate import PeriFlowRate
@@ -47,6 +48,24 @@ class PeristalticDispenser:
   def __init__(self, runtime: Runtime) -> None:
     self._runtime = runtime
 
+  def _at(self, head: Head) -> Positioning:
+    """Where a head works the plate on the carrier, when the caller names no position.
+
+    A step carries the height it works at outright, so a default height that suits one plate is too
+    deep on a shallower one. Taking it from the plate is what keeps a defaulted call safe on every
+    plate the instrument works.
+
+    Args:
+      head: Which head is doing the work.
+
+    Returns:
+      The nominal position for that head, with no offset across or along the well.
+
+    Raises:
+      RejectedError: If no plate has been set.
+    """
+    return Positioning(z_steps=self._runtime.plate_record.height_for(head))
+
   async def dispense(
     self,
     volume: int,
@@ -72,7 +91,8 @@ class PeristalticDispenser:
       flow_rate: How fast to dispense.
       cassette_type: The cassette the step requires, or None to accept whatever is fitted.
       peri_pump: Which pump to drive, or None to leave the choice to the instrument.
-      positioning: Where in the well to dispense.
+      positioning: Where in the well to dispense. Defaults to the nominal height for this
+        head over the plate on the carrier, with no offset across or along the well.
       pre_dispense: Whether to pre-dispense first, at what volume and how many times.
       columns: Which columns to dispense into.
       rows: Which rows to dispense into.
@@ -82,10 +102,15 @@ class PeristalticDispenser:
     Raises:
       BiotekError: If the step cannot run, or fails while running.
     """
+    where = positioning if positioning is not None else self._at("dispenser")
     step: PeriDispense
     if well_volumes is None and cassette_head is None:
       step = PeriDispense(
-        volume=volume, flow_rate=flow_rate, cassette_type=cassette_type, peri_pump=peri_pump
+        volume=volume,
+        flow_rate=flow_rate,
+        cassette_type=cassette_type,
+        peri_pump=peri_pump,
+        positioning=where,
       )
     else:
       step = PeriRandomAccessDispense(
@@ -94,11 +119,10 @@ class PeristalticDispenser:
         cassette_type=cassette_type,
         peri_pump=peri_pump,
         cassette_head=cassette_head,
+        positioning=where,
       )
       if well_volumes is not None:
         step.well_volumes = well_volumes
-    if positioning is not None:
-      step.positioning = positioning
     if pre_dispense is not None:
       step.pre_dispense = pre_dispense
     if columns is not None:
@@ -204,16 +228,20 @@ class PeristalticDispenser:
       volume: Volume per tube in µL.
       flow_rate: How fast to aspirate, as a position on the aspirate rate scale.
       peri_pump: Which pump to drive.
-      positioning: Where in the well to aspirate.
+      positioning: Where in the well to aspirate. Defaults to the nominal height for this
+        head over the plate on the carrier, with no offset across or along the well.
       columns: Which columns to aspirate.
       rows: Which row sections to aspirate.
 
     Raises:
       BiotekError: If the step cannot run, or fails while running.
     """
-    step = PeriWashAspirate(volume=volume, flow_rate=flow_rate, peri_pump=peri_pump)
-    if positioning is not None:
-      step.positioning = positioning
+    step = PeriWashAspirate(
+      volume=volume,
+      flow_rate=flow_rate,
+      peri_pump=peri_pump,
+      positioning=positioning if positioning is not None else self._at("manifold aspirate"),
+    )
     if columns is not None:
       step.columns = columns
     if rows is not None:
@@ -239,7 +267,8 @@ class PeristalticDispenser:
       volume: Volume per tube in µL.
       flow_rate: How fast to dispense, as a position on the dispense rate scale.
       peri_pump: Which pump to drive.
-      positioning: Where in the well to dispense.
+      positioning: Where in the well to dispense. Defaults to the nominal height for this
+        head over the plate on the carrier, with no offset across or along the well.
       pre_dispense: Whether to pre-dispense first, at what volume and how many times.
       columns: Which columns to dispense into.
       rows: Which row sections to dispense into.
@@ -247,9 +276,12 @@ class PeristalticDispenser:
     Raises:
       BiotekError: If the step cannot run, or fails while running.
     """
-    step = PeriWashDispense(volume=volume, flow_rate=flow_rate, peri_pump=peri_pump)
-    if positioning is not None:
-      step.positioning = positioning
+    step = PeriWashDispense(
+      volume=volume,
+      flow_rate=flow_rate,
+      peri_pump=peri_pump,
+      positioning=positioning if positioning is not None else self._at("manifold aspirate"),
+    )
     if pre_dispense is not None:
       step.pre_dispense = pre_dispense
     if columns is not None:

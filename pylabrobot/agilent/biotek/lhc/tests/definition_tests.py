@@ -38,12 +38,14 @@ WASH = (
 
 
 def test_the_definition_says_which_step_it_is():
+  """The definition says which step it is."""
   step = step_from_definition("DV103|9|A|40|9|True|5|True|04:00")
   assert isinstance(step, ManifoldPrime)
   assert step.step_type is StepType.MANIFOLD_PRIME
 
 
 def test_every_field_lands_where_the_writer_puts_it():
+  """Every field lands where the writer puts it."""
   step = ManifoldPrime.from_definition("DV103|9|C|95|9|True|50|True|00:20")
   assert step == ManifoldPrime(
     buffer="C",
@@ -79,11 +81,13 @@ def test_the_format_marker_is_optional_and_is_not_kept(text: str):
 
 
 def test_a_newer_marker_is_refused_whole():
+  """A newer marker is refused whole."""
   with pytest.raises(ValueError, match="newer than DV103"):
     ManifoldPrime.from_definition("DV104|9|A|40|5|True|5|True|04:00")
 
 
 def test_fields_reports_where_the_step_type_sits():
+  """Fields reports where the step type sits."""
   assert definition.fields("DV103|9|A") == (["DV103", "9", "A"], 1)
   assert definition.fields("9|A") == (["9", "A"], 0)
 
@@ -99,6 +103,7 @@ def test_fields_reports_where_the_step_type_sits():
 def test_only_a_definition_older_than_the_current_format_may_be_short(
   found: list[str], older: bool
 ):
+  """Only a definition older than the current format may be short."""
   assert definition.is_older_format(found) is older
 
 
@@ -113,6 +118,7 @@ def test_a_sub_steps_own_type_field_is_not_read():
 
 
 def test_every_step_type_reads_back_as_its_own_class():
+  """Every step type reads back as its own class."""
   for step_type, cls in STEP_CLASSES.items():
     text = cls().to_definition()
     assert type(step_from_definition(text)) is cls, step_type.name
@@ -210,6 +216,7 @@ def test_a_short_definition_of_the_current_format_is_another_products():
 
 
 def test_a_definition_at_full_length_is_untouched():
+  """A definition at full length is untouched."""
   full = "DV103|5|1|5000|5|5|0|True|False|00:05|1"
   assert SyringePrime.from_definition(full).to_definition() == full
 

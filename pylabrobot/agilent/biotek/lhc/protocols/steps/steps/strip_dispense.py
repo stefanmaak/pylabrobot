@@ -48,7 +48,7 @@ class StripDispense(Step):
 
   volume: int = 50
   flow_rate: int = 5
-  positioning: Positioning = field(default_factory=lambda: Positioning(z=336))
+  positioning: Positioning = field(default_factory=lambda: Positioning(z_steps=333))
   pre_dispense: PreDispense = field(
     default_factory=lambda: PreDispense(volume=50, flow_rate=5, count=2)
   )
@@ -116,7 +116,9 @@ class StripDispense(Step):
       volume=definition.number(volume, 16),
       flow_rate=definition.number(flow_rate, 8),
       positioning=Positioning(
-        z=definition.signed(z, 16), x=definition.signed(x, 16), y=definition.signed(y, 8)
+        z_steps=definition.signed(z, 16),
+        x_steps=definition.signed(x, 16),
+        y_steps=definition.signed(y, 8),
       ),
       pre_dispense=PreDispense(
         enabled=definition.flag(pre_enabled),
@@ -146,9 +148,9 @@ class StripDispense(Step):
     payload = (
       u16(self.volume)
       + u8(self.flow_rate)
-      + i16(self.positioning.x)
-      + i8(self.positioning.y)
-      + i16(self.positioning.z)
+      + i16(self.positioning.x_steps)
+      + i8(self.positioning.y_steps)
+      + i16(self.positioning.z_steps)
       + u16(self.pre_dispense.volume if pre_dispensing else 0)
       + u8(self.pre_dispense.flow_rate if self.in_wash else self.flow_rate)
       + u8(self.pre_dispense.count)

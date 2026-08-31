@@ -1,3 +1,5 @@
+"""The motors a homing or verification command can address."""
+
 from __future__ import annotations
 
 import enum

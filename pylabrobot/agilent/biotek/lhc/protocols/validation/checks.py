@@ -348,8 +348,7 @@ def syringe_volume(
   if value < minimum or value > maximum:
     return Rejection(
       VOLUME,
-      f"{prefix}Volume for the specified Flow Rate\r\nand Plate Type must be "
-      f"{minimum}..{maximum}",
+      f"{prefix}Volume for the specified Flow Rate\r\nand Plate Type must be {minimum}..{maximum}",
     )
   if value != int(value) and manifold is SyringeManifold.TUBE_16:
     return Rejection(FRACTIONAL_VOLUME)

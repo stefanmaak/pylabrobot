@@ -1,3 +1,5 @@
+"""Which wash manifold is fitted."""
+
 from __future__ import annotations
 
 import enum

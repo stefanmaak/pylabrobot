@@ -119,7 +119,9 @@ class PeriRandomAccessDispense(PeriDispense):
       flow_rate=PERI_FLOW_RATES[flow_rate],
       cassette_type=BYTE_TO_CASSETTE_TYPE.get(int(cassette)),
       positioning=Positioning(
-        z=definition.signed(z, 16), x=definition.signed(x, 16), y=definition.signed(y, 8)
+        z_steps=definition.signed(z, 16),
+        x_steps=definition.signed(x, 16),
+        y_steps=definition.signed(y, 8),
       ),
       pre_dispense=PreDispense(
         enabled=definition.flag(pre_enabled),
@@ -150,9 +152,9 @@ class PeriRandomAccessDispense(PeriDispense):
     return pad(
       u16(self.volume)
       + u8(PERI_FLOW_RATE_TO_BYTE[self.flow_rate])
-      + i16(self.positioning.x)
-      + i8(self.positioning.y)
-      + i16(self.positioning.z)
+      + i16(self.positioning.x_steps)
+      + i8(self.positioning.y_steps)
+      + i16(self.positioning.z_steps)
       + u16(self.pre_dispense.wire_volume)
       + u8(self.pre_dispense.count)
       + bytes(value for row in self.well_volumes.values for value in row)

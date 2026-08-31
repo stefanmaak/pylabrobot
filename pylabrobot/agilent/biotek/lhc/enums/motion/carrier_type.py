@@ -1,3 +1,5 @@
+"""Which plate carrier is fitted."""
+
 from __future__ import annotations
 
 import enum

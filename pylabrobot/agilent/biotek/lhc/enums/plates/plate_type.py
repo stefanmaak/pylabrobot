@@ -1,3 +1,5 @@
+"""The labware formats an instrument can be set to."""
+
 from __future__ import annotations
 
 import enum
