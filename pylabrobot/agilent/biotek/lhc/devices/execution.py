@@ -16,6 +16,7 @@ from __future__ import annotations
 import asyncio
 import logging
 
+from pylabrobot.agilent.biotek.lhc.comm.observer import Operation
 from pylabrobot.agilent.biotek.lhc.devices.batch import batch
 from pylabrobot.agilent.biotek.lhc.devices.queries import optional_byte
 from pylabrobot.agilent.biotek.lhc.devices.runtime import Runtime
@@ -88,7 +89,9 @@ async def status(runtime: Runtime) -> RunStatus:
     BiotekError: If the instrument reports a fault, which is how a step that failed is learned of.
   """
   command = GetProtocolStatus()
-  return command.parse(await runtime.link.request(command, operation="status"))
+  async with runtime.link.operation(Operation("status")):
+    answer = await runtime.link.request(command, operation="status")
+  return command.parse(answer)
 
 
 async def wait_until_idle(
@@ -140,7 +143,8 @@ async def run_step(
   plate_type = runtime.plate_type
   await wait_until_idle(runtime)
   command = RunStep(command_for_step(step), plate_type, step.to_bytes(runtime.settings))
-  await runtime.link.request(command, operation=step.step_type.name)
+  async with runtime.link.operation(Operation("run step", step=step)):
+    await runtime.link.request(command, operation=step.step_type.name)
   logger.info("running %s on %s", step.step_type.name, runtime.link.name)
   await asyncio.sleep(runtime.settle)
   await _wait_for_step(runtime, step, timeout, interval)
@@ -242,7 +246,8 @@ async def can_run(runtime: Runtime, steps: list[Step]) -> ValidationReport:
     RejectedError: If no plate has been set.
   """
   plate = runtime.plate_record
-  await _read_instrument_facts(runtime)
+  async with runtime.link.operation(Operation("check protocol", steps=tuple(steps))):
+    await _read_instrument_facts(runtime)
   report, reservations = validate(
     steps=steps,
     settings=runtime.settings,
@@ -265,7 +270,8 @@ async def abort(runtime: Runtime) -> None:
   Raises:
     BiotekError: If the instrument will not stop.
   """
-  await runtime.link.request(AbortStep(), operation="abort")
+  async with runtime.link.operation(Operation("abort")):
+    await runtime.link.request(AbortStep(), operation="abort")
 
 
 async def pause(runtime: Runtime) -> None:
@@ -277,7 +283,8 @@ async def pause(runtime: Runtime) -> None:
   Raises:
     BiotekError: If the instrument will not pause.
   """
-  await runtime.link.request(PauseStep(), operation="pause")
+  async with runtime.link.operation(Operation("pause")):
+    await runtime.link.request(PauseStep(), operation="pause")
 
 
 async def resume(runtime: Runtime) -> None:
@@ -289,7 +296,8 @@ async def resume(runtime: Runtime) -> None:
   Raises:
     BiotekError: If the instrument will not resume.
   """
-  await runtime.link.request(ResumeStep(), operation="resume")
+  async with runtime.link.operation(Operation("resume")):
+    await runtime.link.request(ResumeStep(), operation="resume")
 
 
 async def _read_instrument_facts(runtime: Runtime) -> None:
@@ -303,11 +311,13 @@ async def _read_instrument_facts(runtime: Runtime) -> None:
     runtime: The device's state, updated in place.
   """
   if runtime.plate_restriction is None:
-    answer = await optional_byte(runtime.link, CommandNumber.GET_PLATE_RESTRICTION)
+    async with runtime.link.operation(Operation("plate restriction")):
+      answer = await optional_byte(runtime.link, CommandNumber.GET_PLATE_RESTRICTION)
     if answer is not None:
       runtime.plate_restriction = PlateRestriction(answer)
   if runtime.carrier_type is None:
-    answer = await optional_byte(runtime.link, CommandNumber.GET_CARRIER_TYPE)
+    async with runtime.link.operation(Operation("carrier type")):
+      answer = await optional_byte(runtime.link, CommandNumber.GET_CARRIER_TYPE)
     if answer is not None:
       runtime.carrier_type = CarrierType(answer)
 

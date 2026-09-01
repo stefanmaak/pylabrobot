@@ -13,8 +13,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from contextlib import AbstractAsyncContextManager
 
 from pylabrobot.agilent.biotek.lhc.comm.connection import transport_for
+from pylabrobot.agilent.biotek.lhc.comm.observer import LinkObserver, Operation, observed
 from pylabrobot.agilent.biotek.lhc.comm.transport import DEFAULT_READ_TIMEOUT, Transport
 from pylabrobot.agilent.biotek.lhc.enums.instrument.instrument_family import InstrumentFamily
 from pylabrobot.agilent.biotek.lhc.error_handling import (
@@ -49,6 +51,9 @@ class Link:
       moving carries a longer one of its own.
     io: An already built transport to use instead of opening ``port``. This is how a capture and
       replay double is supplied to a test; there is no other way past the port string.
+    observer: Told what the link does, in order, and told nothing else. It cannot change an
+      exchange and its failures are logged rather than raised, so a link with one behaves exactly
+      as a link without one.
   """
 
   def __init__(
@@ -58,6 +63,7 @@ class Link:
     name: str = "BioTek instrument",
     timeout: float = DEFAULT_READ_TIMEOUT,
     io: Transport | None = None,
+    observer: LinkObserver | None = None,
   ) -> None:
     if io is None and not port:
       raise ValueError("either a port or a transport is required")
@@ -65,8 +71,30 @@ class Link:
     self._family = family
     self._name = name
     self._timeout = timeout
+    self._observer = observer
     self._open = False
     self._exchange = asyncio.Lock()
+
+  @property
+  def observer(self) -> LinkObserver | None:
+    """What is watching this link, or None while nothing is."""
+    return self._observer
+
+  @observer.setter
+  def observer(self, observer: LinkObserver | None) -> None:
+    self._observer = observer
+
+  def operation(self, operation: Operation) -> AbstractAsyncContextManager[None]:
+    """Bracket the frames of one operation, for whatever is watching the link.
+
+    Args:
+      operation: What the device is being asked to do.
+
+    Returns:
+      A context manager holding the operation open for the body of the block. It does nothing at
+      all while nothing is watching.
+    """
+    return observed(self._observer, operation)
 
   @property
   def family(self) -> InstrumentFamily:
@@ -180,6 +208,8 @@ class Link:
         operation=operation or "write",
       ) from error
     logger.debug("[%s] sent %s", self._io.port, frame.hex())
+    if self._observer is not None:
+      await self._notify_sent(frame)
 
   async def _read_ack(self, operation: str) -> None:
     """Wait for the instrument to acknowledge a command.
@@ -249,4 +279,33 @@ class Link:
         code=REPLY_TIMED_OUT,
       )
     logger.debug("[%s] got %s %s", self._io.port, raw.hex(), payload.hex())
+    if self._observer is not None:
+      await self._notify_received(raw, payload)
     return header, payload
+
+  async def _notify_sent(self, frame: bytes) -> None:
+    """Tell the observer about a frame going out, swallowing whatever it raises.
+
+    Args:
+      frame: The header followed by the payload.
+    """
+    if self._observer is None:
+      return
+    try:
+      await self._observer.frame_sent(frame)
+    except Exception:  # noqa: BLE001 -- an observer must never break the link it is watching.
+      logger.exception("a link observer raised, and was ignored")
+
+  async def _notify_received(self, header: bytes, payload: bytes) -> None:
+    """Tell the observer about a reply coming back, swallowing whatever it raises.
+
+    Args:
+      header: The eleven reply header bytes.
+      payload: The reply payload.
+    """
+    if self._observer is None:
+      return
+    try:
+      await self._observer.frame_received(header, payload)
+    except Exception:  # noqa: BLE001 -- an observer must never break the link it is watching.
+      logger.exception("a link observer raised, and was ignored")

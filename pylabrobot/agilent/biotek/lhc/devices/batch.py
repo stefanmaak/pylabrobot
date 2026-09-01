@@ -19,6 +19,7 @@ from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
 from pylabrobot.agilent.biotek.lhc.comm.link import Link
+from pylabrobot.agilent.biotek.lhc.comm.observer import Operation
 from pylabrobot.agilent.biotek.lhc.devices.runtime import Runtime
 from pylabrobot.agilent.biotek.lhc.enums.motion.motor import Motor
 from pylabrobot.agilent.biotek.lhc.enums.motion.motor_home_type import MotorHomeType
@@ -115,8 +116,9 @@ async def open_batch(runtime: Runtime) -> None:
     RejectedError: If no plate has been set.
   """
   plate_type = runtime.plate_type
-  await _reconcile_pumps(runtime)
-  await runtime.link.request(InitProtocol(plate_type), operation="open batch")
+  async with runtime.link.operation(Operation("open batch")):
+    await _reconcile_pumps(runtime)
+    await runtime.link.request(InitProtocol(plate_type), operation="open batch")
   logger.info("batch open on %s for a %s", runtime.link.name, plate_type.name)
 
 
@@ -131,11 +133,14 @@ async def close_batch(runtime: Runtime, home_on_close: bool = False) -> None:
     BiotekError: If the instrument will not close the batch.
   """
   if home_on_close:
-    await runtime.link.request(
-      HomeVerifyMotors(int(MotorHomeType.HOME_XYZ_MOTORS), int(Motor.CARRIER_X)),
-      operation="home",
-    )
-  await runtime.link.request(ExitProtocol(), operation="close batch")
+    home = Operation("home", arguments=(int(MotorHomeType.HOME_XYZ_MOTORS), int(Motor.CARRIER_X)))
+    async with runtime.link.operation(home):
+      await runtime.link.request(
+        HomeVerifyMotors(int(MotorHomeType.HOME_XYZ_MOTORS), int(Motor.CARRIER_X)),
+        operation="home",
+      )
+  async with runtime.link.operation(Operation("close batch")):
+    await runtime.link.request(ExitProtocol(), operation="close batch")
   logger.info("batch closed on %s", runtime.link.name)
 
 

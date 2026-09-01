@@ -7,6 +7,7 @@ from contextlib import AbstractAsyncContextManager
 from typing import ClassVar
 
 from pylabrobot.agilent.biotek.lhc.comm.link import Link
+from pylabrobot.agilent.biotek.lhc.comm.observer import LinkObserver, Operation
 from pylabrobot.agilent.biotek.lhc.comm.transport import DEFAULT_READ_TIMEOUT, Transport
 from pylabrobot.agilent.biotek.lhc.devices import batch as batching
 from pylabrobot.agilent.biotek.lhc.devices import execution, settings_document, settings_query
@@ -91,6 +92,8 @@ class MultiFlo:
       instrument has stopped moving carry longer timeouts of their own.
     io: An already open transport to use instead of opening ``port``, for a test that replays a
       recorded exchange.
+    observer: Told what the link does, in order. It cannot change an exchange, so an instrument
+      with one behaves exactly as one without.
 
   Attributes:
     syringe_dispenser: The syringes.
@@ -106,9 +109,17 @@ class MultiFlo:
     name: str = "MultiFlo",
     timeout: float = DEFAULT_READ_TIMEOUT,
     io: Transport | None = None,
+    observer: LinkObserver | None = None,
   ) -> None:
     self._runtime = Runtime(
-      link=Link(port=port, family=self.family, name=name, timeout=timeout, io=io),
+      link=Link(
+        port=port,
+        family=self.family,
+        name=name,
+        timeout=timeout,
+        io=io,
+        observer=observer,
+      ),
       rules=rules_for(self.family),
     )
     self.syringe_dispenser = SyringeDispenser(self._runtime)
@@ -161,7 +172,8 @@ class MultiFlo:
       )
     link = self._runtime.link
     await link.setup()
-    await link.request(Ping(), operation="ping")
+    async with link.operation(Operation("ping")):
+      await link.request(Ping(), operation="ping")
     self._runtime.settings = await settings_query.read_settings(link, self.family)
     self._runtime.forget_instrument_facts()
     logger.info("%s is ready: %s", self.name, self._runtime.settings)
@@ -359,7 +371,9 @@ class MultiFlo:
       BiotekError: If it cannot be read.
     """
     command = GetSerialNumber()
-    return command.parse(await self._runtime.link.request(command, operation="serial number"))
+    async with self._runtime.link.operation(Operation("serial number")):
+      answer = await self._runtime.link.request(command, operation="serial number")
+    return command.parse(answer)
 
   async def get_firmware_version(self) -> FirmwareVersion:
     """Read the instrument's firmware version.
@@ -371,7 +385,9 @@ class MultiFlo:
       BiotekError: If it cannot be read.
     """
     command = GetFirmwareVersion()
-    return command.parse(await self._runtime.link.request(command, operation="firmware version"))
+    async with self._runtime.link.operation(Operation("firmware version")):
+      answer = await self._runtime.link.request(command, operation="firmware version")
+    return command.parse(answer)
 
   async def self_check(self) -> None:
     """Run the instrument's own self-check and wait for it.
@@ -379,7 +395,8 @@ class MultiFlo:
     Raises:
       BiotekError: If the check does not pass, reporting what failed.
     """
-    await self._runtime.link.request(RunSelfCheck(), operation="self check")
+    async with self._runtime.link.operation(Operation("self check")):
+      await self._runtime.link.request(RunSelfCheck(), operation="self check")
 
   async def reset(self) -> None:
     """Reset the instrument, and wait for it to come back.
@@ -390,7 +407,8 @@ class MultiFlo:
     Raises:
       BiotekError: If the instrument does not come back.
     """
-    await self._runtime.link.request(ResetInstrument(), operation="reset")
+    async with self._runtime.link.operation(Operation("reset")):
+      await self._runtime.link.request(ResetInstrument(), operation="reset")
 
   async def home(self, motor: Motor | None = None) -> None:
     """Drive the transport to its home position and confirm it arrived.
@@ -403,10 +421,11 @@ class MultiFlo:
       BiotekError: If a motor does not reach its home position.
     """
     home_type = MotorHomeType.HOME_MOTOR if motor is not None else MotorHomeType.HOME_XYZ_MOTORS
-    await self._runtime.link.request(
-      HomeVerifyMotors(int(home_type), int(motor) if motor is not None else 0),
-      operation="home",
-    )
+    selected = int(motor) if motor is not None else 0
+    async with self._runtime.link.operation(
+      Operation("home", arguments=(int(home_type), selected))
+    ):
+      await self._runtime.link.request(HomeVerifyMotors(int(home_type), selected), operation="home")
 
   async def abort(self) -> None:
     """Stop the running step.

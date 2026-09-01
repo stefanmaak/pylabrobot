@@ -16,11 +16,7 @@ from pylabrobot.agilent.biotek.lhc.devices.components.peristaltic_dispenser impo
 from pylabrobot.agilent.biotek.lhc.devices.components.syringe_dispenser import SyringeDispenser
 from pylabrobot.agilent.biotek.lhc.devices.components.washer import PlateWasher
 from pylabrobot.agilent.biotek.lhc.devices.instrument_settings import InstrumentSettings
-from pylabrobot.agilent.biotek.lhc.enums.instrument.basecode import Basecode
 from pylabrobot.agilent.biotek.lhc.enums.instrument.instrument_family import InstrumentFamily
-from pylabrobot.agilent.biotek.lhc.enums.instrument.strip_washer_manifold import (
-  StripWasherManifold,
-)
 from pylabrobot.agilent.biotek.lhc.enums.plates.plate_type import PlateType
 from pylabrobot.agilent.biotek.lhc.enums.steps.step_action import StepAction
 from pylabrobot.agilent.biotek.lhc.enums.steps.step_type import StepType
@@ -38,54 +34,13 @@ from pylabrobot.agilent.biotek.lhc.protocols.steps.steps.strip_dispense import S
 from pylabrobot.agilent.biotek.lhc.protocols.steps.steps.syringe_dispense import SyringeDispense
 from pylabrobot.agilent.biotek.lhc.serialization.command_numbers import CommandNumber
 from pylabrobot.agilent.biotek.lhc.tests.helpers import (
-  ACCEPTS_EVERY_PLATE,
+  ANSWERS,
+  PERI_WASHING,
+  PUMP_READY,
+  STRIP_WASHING,
   FakeInstrument,
   make_plate,
 )
-
-ANSWERS = {
-  CommandNumber.GET_SYRINGE_MANIFOLD_INSTALLED: bytes([1]),
-  CommandNumber.GET_SYRINGE_BOX_INFO: bytes([1, 2]),
-  CommandNumber.GET_SELECTED_PERI_INSTALLED: bytes([1]),
-  CommandNumber.GET_WASHER_MANIFOLD_INSTALLED: bytes([0]),
-  CommandNumber.GET_EXT_VALVE_MODULE_INSTALLED: bytes([1]),
-  CommandNumber.GET_VACUUM_FILTRATION_INSTALLED: bytes([0]),
-  CommandNumber.GET_ULTRASONIC_CLEANER_INSTALLED: bytes([1]),
-  CommandNumber.GET_CELL_WASHING_INSTALLED: bytes([1]),
-  CommandNumber.GET_IS_PERI_HALF_UL_SUPPORTED: bytes([1]),
-  CommandNumber.GET_Y_AXIS_INSTALLED: bytes([1]),
-  CommandNumber.GET_SERIAL_NUMBER: b"SN0001".ljust(24),
-  CommandNumber.GET_BASECODE_VERSION: (
-    b"7100000" + b"2.22.6  " + b"ABCD" + b"DCBA" + b"1.000" + b"1.0" + b"2.0" + b" " * 12
-  ),
-  CommandNumber.IS_STRIP_WASHER_BOX_CONNECTED: bytes([0]),
-  CommandNumber.GET_STRIP_WASHER_HW_INSTALLED: bytes([0]),
-  CommandNumber.GET_WHICH_BASECODE_IS_INSTALLED: bytes([0]),
-  CommandNumber.GET_FLUID_TRACKING_ENABLED: bytes([1]),
-  **ACCEPTS_EVERY_PLATE,
-}
-"""What the fake instrument answers, which is a fully equipped instrument of the original model."""
-
-PUMP_READY = {**ANSWERS, CommandNumber.GET_SELECTED_PERI_STATE: bytes([2])}
-"""The same instrument, with its peristaltic pumps in a state to turn, which is what opening a
-batch for a step that drives one checks before letting it run."""
-
-PERI_WASHING = {
-  **PUMP_READY,
-  CommandNumber.GET_WHICH_BASECODE_IS_INSTALLED: bytes([int(Basecode.PERI_WASH)]),
-}
-"""An instrument running the firmware that carries the peristaltic wash step types. Which
-variant is installed is only asked of the newest model, so this is only worth answering for
-one."""
-
-STRIP_WASHING = {
-  **PUMP_READY,
-  CommandNumber.IS_STRIP_WASHER_BOX_CONNECTED: bytes([1]),
-  CommandNumber.GET_STRIP_WASHER_HW_INSTALLED: bytes([1]),
-  CommandNumber.GET_STRIP_WASHER_MANIFOLD_TYPE: bytes([int(StripWasherManifold.PLATE_96_WELL)]),
-}
-"""An instrument with a strip washer fitted, carrying the manifold that works 96-well and
-384-well plates."""
 
 
 class DeviceTestCase(unittest.IsolatedAsyncioTestCase):

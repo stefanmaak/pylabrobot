@@ -14,6 +14,7 @@ from __future__ import annotations
 import logging
 
 from pylabrobot.agilent.biotek.lhc.comm.link import Link
+from pylabrobot.agilent.biotek.lhc.comm.observer import Operation
 from pylabrobot.agilent.biotek.lhc.devices.instrument_settings import InstrumentSettings
 from pylabrobot.agilent.biotek.lhc.devices.queries import (
   answers,
@@ -55,6 +56,23 @@ async def read_settings(link: Link, family: InstrumentFamily) -> InstrumentSetti
   Raises:
     BiotekError: If an option the family does carry cannot be read, since a step encoded against a
       half-read record would be encoded wrongly.
+  """
+  async with link.operation(Operation("read settings")):
+    return await _read_all(link, family)
+
+
+async def _read_all(link: Link, family: InstrumentFamily) -> InstrumentSettings:
+  """Ask an instrument what it has fitted, in the sequence its family answers for.
+
+  Args:
+    link: The open link to the instrument.
+    family: Which model this is.
+
+  Returns:
+    What it answered.
+
+  Raises:
+    BiotekError: If an option the family does carry cannot be read.
   """
   if family is InstrumentFamily.MODEL_405_TS:
     return await _read_washer(link, family)
