@@ -73,15 +73,15 @@ class MultiFlo:
   Two ways of dispensing, reached as :attr:`syringe_dispenser` and :attr:`peristaltic_dispenser`.
   There is no wash manifold, so washing a plate is not something this model does.
 
-  ```python
-  device = MultiFlo(port="/dev/ttyUSB0")
-  await device.setup()
-  device.set_plate(plate)
-  async with device.batch():
-    await device.peristaltic_dispenser.prime(volume=300)
-    await device.peristaltic_dispenser.dispense(volume=50)
-  await device.stop()
-  ```
+  .. code-block:: python
+
+    device = MultiFlo(port="/dev/ttyUSB0")
+    await device.setup()
+    device.set_plate(plate)
+    async with device.batch():
+      await device.peristaltic_dispenser.prime(volume=300)
+      await device.peristaltic_dispenser.dispense(volume=50)
+    await device.stop()
 
   Args:
     port: The port the instrument is on. A string carrying a device serial number names a USB

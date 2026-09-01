@@ -67,13 +67,13 @@ class Washer405TS:
   syringes and no peristaltic pumps, so it dispenses nothing of its own; a protocol written for a
   washer-dispenser has its dispensing steps refused by :meth:`can_run`.
 
-  ```python
-  device = Washer405TS(port="/dev/ttyUSB0")
-  await device.setup()
-  device.set_plate(plate)
-  await device.washer.wash(cycles=3)
-  await device.stop()
-  ```
+  .. code-block:: python
+
+    device = Washer405TS(port="/dev/ttyUSB0")
+    await device.setup()
+    device.set_plate(plate)
+    await device.washer.wash(cycles=3)
+    await device.stop()
 
   Args:
     port: The port the instrument is on. A string carrying a device serial number names a USB

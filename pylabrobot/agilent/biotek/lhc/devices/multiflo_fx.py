@@ -89,15 +89,15 @@ class MultiFloFX:
   Dispensing is reached as :attr:`syringe_dispenser` and :attr:`peristaltic_dispenser`, and gentle
   medium exchange through the peristaltic wash manifolds is on the latter.
 
-  ```python
-  device = MultiFloFX(port="ftdi:FT1ABCDE")
-  await device.setup()
-  device.set_plate(plate)
-  async with device.batch():
-    await device.peristaltic_dispenser.wash_aspirate(volume=100)
-    await device.peristaltic_dispenser.wash_dispense(volume=100)
-  await device.stop()
-  ```
+  .. code-block:: python
+
+    device = MultiFloFX(port="ftdi:FT1ABCDE")
+    await device.setup()
+    device.set_plate(plate)
+    async with device.batch():
+      await device.peristaltic_dispenser.wash_aspirate(volume=100)
+      await device.peristaltic_dispenser.wash_dispense(volume=100)
+    await device.stop()
 
   Args:
     port: The port the instrument is on. A string carrying a device serial number names a USB

@@ -82,16 +82,16 @@ class EL406:
   A single operation and a whole protocol take the same path -- checked, bracketed in a batch,
   polled to completion -- so:
 
-  ```python
-  device = EL406(port="/dev/ttyUSB0")
-  await device.setup()
-  device.set_plate(plate)
-  await device.washer.wash(cycles=3)
-  async with device.batch():
-    await device.washer.prime()
-    await device.syringe_dispenser.dispense(volume=50)
-  await device.stop()
-  ```
+  .. code-block:: python
+
+    device = EL406(port="/dev/ttyUSB0")
+    await device.setup()
+    device.set_plate(plate)
+    await device.washer.wash(cycles=3)
+    async with device.batch():
+      await device.washer.prime()
+      await device.syringe_dispenser.dispense(volume=50)
+    await device.stop()
 
   Args:
     port: The port the instrument is on. A string carrying a device serial number names a USB
