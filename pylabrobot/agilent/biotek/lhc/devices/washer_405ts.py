@@ -122,7 +122,13 @@ class Washer405TS:
 
   @property
   def settings(self) -> InstrumentSettings:
-    """What the instrument reported as fitted when :meth:`setup` last ran."""
+    """What the instrument reported as fitted when :meth:`setup` last ran.
+
+    Raises:
+      RejectedError: If :meth:`setup` has not run. There is no default to fall back on: a record
+        nobody read would describe some other machine, and answering from one is how a check comes
+        to allow hardware this instrument does not have.
+    """
     return self._runtime.settings
 
   @property
@@ -164,7 +170,7 @@ class Washer405TS:
     await link.setup()
     async with link.operation(Operation("ping")):
       await link.request(Ping(), operation="ping")
-    self._runtime.settings = await settings_query.read_settings(link, self.family)
+    self._runtime.reported_settings = await settings_query.read_settings(link, self.family)
     self._runtime.forget_instrument_facts()
     logger.info("%s is ready: %s", self.name, self._runtime.settings)
 

@@ -63,7 +63,12 @@ class ExecutionTestCase(unittest.IsolatedAsyncioTestCase):
       family=FAMILY,
       busy_after_step=busy_after_step,
     )
-    state = Runtime(link=link, rules=rules_for(FAMILY), settle=0)
+    state = Runtime(
+      link=link,
+      rules=rules_for(FAMILY),
+      reported_settings=InstrumentSettings(family=FAMILY),
+      settle=0,
+    )
     if with_plate:
       state.plate = resolve(make_plate(96), FAMILY)
     await link.setup()
@@ -215,7 +220,7 @@ class TestCheckingAProtocol(ExecutionTestCase):
     """A syringe prime on an instrument with no syringe box cannot run, and the batch is never
     opened for it."""
     state, io = await self.opened()
-    state.settings = InstrumentSettings(
+    state.reported_settings = InstrumentSettings(
       family=FAMILY,
       syringe_box=SyringeBoxType.NOT_INSTALLED,
       syringe_manifold=SyringeManifold.NOT_INSTALLED,

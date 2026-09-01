@@ -34,8 +34,9 @@ class Runtime:
   Attributes:
     link: The connection to the instrument, which carries which model this is.
     rules: Which validation rules this model's firmware runs.
-    settings: What the instrument has fitted. Read from the instrument by ``setup()``, and the
-      record every step is encoded against.
+    reported_settings: What the instrument reported fitted, or None until ``setup()`` has asked
+      it. Read it through :attr:`settings`, which refuses to hand over a record the instrument has
+      not given.
     reconciles_cassette_head: Whether opening a batch reconciles the peristaltic dispense head as
       well as the cassettes. Only one model carries a head that can be set.
     plate: The plate on the carrier, or None while none has been set.
@@ -53,7 +54,7 @@ class Runtime:
 
   link: Link
   rules: BuildRules = COMMON
-  settings: InstrumentSettings = field(default_factory=InstrumentSettings)
+  reported_settings: InstrumentSettings | None = None
   reconciles_cassette_head: bool = False
   plate: PlateRecord | None = None
   reservations: Reservations = field(default_factory=Reservations)
@@ -62,6 +63,25 @@ class Runtime:
   settle: float = 0.5
   in_batch: bool = False
   port: asyncio.Lock = field(default_factory=asyncio.Lock)
+
+  @property
+  def settings(self) -> InstrumentSettings:
+    """What the instrument reported fitted.
+
+    Raises:
+      RejectedError: If the instrument has not been read. Nothing can be encoded or checked without
+        that: a step is encoded against what is fitted, and a check measures it against the same
+        record, so answering from a default would describe some other machine. In particular it
+        would describe a fully equipped instrument of the first model, and so answer "yes, that can
+        run" for hardware this instrument does not have.
+    """
+    if self.reported_settings is None:
+      raise fail(
+        ErrorKind.REJECTED,
+        "the instrument has not been read; call setup() before encoding or checking anything",
+        operation="settings",
+      )
+    return self.reported_settings
 
   @property
   def plate_record(self) -> PlateRecord:

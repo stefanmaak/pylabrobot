@@ -20,6 +20,7 @@ from pylabrobot.agilent.biotek.lhc.enums.instrument.instrument_family import Ins
 from pylabrobot.agilent.biotek.lhc.enums.plates.plate_type import PlateType
 from pylabrobot.agilent.biotek.lhc.enums.steps.step_action import StepAction
 from pylabrobot.agilent.biotek.lhc.enums.steps.step_type import StepType
+from pylabrobot.agilent.biotek.lhc.error_handling import RejectedError
 from pylabrobot.agilent.biotek.lhc.protocols.protocol import Protocol, ProtocolEntry
 from pylabrobot.agilent.biotek.lhc.protocols.steps.step_parts.positioning import Positioning
 from pylabrobot.agilent.biotek.lhc.protocols.steps.steps.manifold_aspirate import ManifoldAspirate
@@ -543,3 +544,51 @@ class TestTheHeightADefaultedCallWorksAt(DeviceTestCase):
       CommandNumber.MANIFOLD_DISPENSE,
       ManifoldDispense(volume=100, positioning=Positioning(z_steps=120)),
     )
+
+
+class TestNothingIsAnsweredBeforeTheInstrumentIsRead(DeviceTestCase):
+  """What a device says about hardware it has not asked about yet.
+
+  A record nobody read describes some other machine, and the one that used to stand in was a fully
+  equipped instrument of the first model -- so a 405 TS would report syringes it does not have and
+  a check would allow a step it cannot run. Every question about the fitted hardware is refused
+  until `setup()` has asked the instrument.
+  """
+
+  def unopened(self, cls):
+    """Build a device without setting it up.
+
+    Args:
+      cls: Which model to build.
+
+    Returns:
+      The device.
+    """
+    return cls(port="fake", io=FakeInstrument(answers=ANSWERS))
+
+  def test_the_fitted_options_are_refused(self):
+    with self.assertRaises(RejectedError):
+      _ = self.unopened(Washer405TS).settings
+
+  def test_what_it_can_run_is_refused(self):
+    with self.assertRaises(RejectedError):
+      self.unopened(Washer405TS).get_available_steps()
+
+  async def test_a_check_is_refused_rather_than_answered_from_a_default(self):
+    """The dangerous one: a 405 TS has no syringes, and this used to report that it had."""
+    device = self.unopened(Washer405TS)
+    device.set_plate(make_plate(96))
+    with self.assertRaises(RejectedError):
+      await device.can_run([SyringeDispense(volume=50)])
+
+  async def test_the_same_check_answers_once_the_instrument_has_been_read(self):
+    device, _ = await self.build(Washer405TS)
+    self.assertFalse(await device.can_run([SyringeDispense(volume=50)]))
+
+  async def test_what_it_can_run_follows_what_is_fitted(self):
+    """A pump that is not there takes its steps with it, which is what the default hid."""
+    answers = {**ANSWERS, CommandNumber.GET_SELECTED_PERI_INSTALLED: bytes([0])}
+    device, _ = await self.build(MultiFlo, answers=answers)
+    available = device.get_available_steps()
+    self.assertNotIn(StepType.PERI_DISPENSE, available)
+    self.assertIn(StepType.SYRINGE_DISPENSE, available)
