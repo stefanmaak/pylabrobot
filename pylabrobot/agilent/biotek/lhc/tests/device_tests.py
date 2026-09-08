@@ -20,7 +20,12 @@ from pylabrobot.agilent.biotek.lhc.enums.instrument.instrument_family import Ins
 from pylabrobot.agilent.biotek.lhc.enums.plates.plate_type import PlateType
 from pylabrobot.agilent.biotek.lhc.enums.steps.step_action import StepAction
 from pylabrobot.agilent.biotek.lhc.enums.steps.step_type import StepType
-from pylabrobot.agilent.biotek.lhc.error_handling import RejectedError
+from pylabrobot.agilent.biotek.lhc.error_handling import (
+  SETTINGS_DATA_TOO_OLD,
+  WRONG_BASECODE_PART_NUMBER,
+  FirmwareError,
+  RejectedError,
+)
 from pylabrobot.agilent.biotek.lhc.protocols.protocol import Protocol, ProtocolEntry
 from pylabrobot.agilent.biotek.lhc.protocols.steps.step_parts.positioning import Positioning
 from pylabrobot.agilent.biotek.lhc.protocols.steps.steps.manifold_aspirate import ManifoldAspirate
@@ -41,7 +46,13 @@ from pylabrobot.agilent.biotek.lhc.tests.helpers import (
   STRIP_WASHING,
   FakeInstrument,
   make_plate,
+  part_number_for,
+  version_record,
 )
+
+
+_VERSION = CommandNumber.GET_BASECODE_VERSION
+"""The query the handshake reads, which several tests below answer differently."""
 
 
 class DeviceTestCase(unittest.IsolatedAsyncioTestCase):
@@ -58,7 +69,12 @@ class DeviceTestCase(unittest.IsolatedAsyncioTestCase):
     Returns:
       The device and the fake instrument behind it.
     """
-    io = FakeInstrument(answers=ANSWERS if answers is None else answers)
+    answers = dict(ANSWERS if answers is None else answers)
+    # A test that named its own version record keeps it; every other one gets the record a model of
+    # this family reports, since the handshake refuses one built for another family.
+    if answers.get(_VERSION) == version_record():
+      answers[_VERSION] = version_record(part_number=part_number_for(cls.family))
+    io = FakeInstrument(answers=answers)
     device = cls(port="fake", io=io)
     # The fake instrument answers at once, so none of the pacing a real one needs is wanted here.
     device.settle = 0
@@ -80,6 +96,40 @@ class TestTheLifecycle(DeviceTestCase):
     """Setup proves something is listening before reading anything."""
     _, io = await self.build(EL406)
     self.assertEqual(io.sent[0], int(CommandNumber.PING))
+
+  async def test_setup_reads_the_version_record_next(self):
+    """Setup reads the version record next, which is what says what is listening."""
+    _, io = await self.build(EL406)
+    self.assertEqual(io.sent[1], int(CommandNumber.GET_BASECODE_VERSION))
+
+  async def test_setup_refuses_a_basecode_built_for_another_family(self):
+    """Setup refuses a basecode built for another family."""
+    answers = {
+      **ANSWERS,
+      _VERSION: version_record(part_number=part_number_for(InstrumentFamily.MULTIFLO)),
+    }
+    with self.assertRaises(FirmwareError) as raised:
+      await self.build(Washer405TS, answers=answers)
+    self.assertEqual(raised.exception.code, WRONG_BASECODE_PART_NUMBER)
+
+  async def test_setup_accepts_the_basecode_of_the_model_being_driven(self):
+    """Setup accepts the basecode of the model being driven."""
+    answers = {**ANSWERS, _VERSION: version_record(part_number=b"1170202")}
+    device, _ = await self.build(Washer405TS, answers=answers)
+    self.assertIs(device.settings.family, InstrumentFamily.MODEL_405_TS)
+
+  async def test_setup_refuses_settings_data_older_than_it_reads(self):
+    """Setup refuses settings data older than this package reads."""
+    answers = {**ANSWERS, _VERSION: version_record(data_version=b"99   ")}
+    with self.assertRaises(FirmwareError) as raised:
+      await self.build(EL406, answers=answers)
+    self.assertEqual(raised.exception.code, SETTINGS_DATA_TOO_OLD)
+
+  async def test_setup_refuses_firmware_that_keeps_no_version_record(self):
+    """Setup refuses firmware that keeps no version record."""
+    with self.assertRaises(FirmwareError) as raised:
+      await self.build(EL406, answers={**ANSWERS, _VERSION: b""})
+    self.assertEqual(raised.exception.code, WRONG_BASECODE_PART_NUMBER)
 
   async def test_a_device_reports_its_own_name(self):
     """A device reports its own name."""

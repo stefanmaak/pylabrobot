@@ -141,7 +141,11 @@ class TestWhatIsReported(ObserverTestCase):
     self.assertEqual(
       [session.operation.name for session in recorder.sessions], ["ping", "read settings"]
     )
-    self.assertEqual(self.numbers(recorder.sessions[0]), [CommandNumber.PING])
+    # The ping is two frames: proving something is listening, then reading what it is.
+    self.assertEqual(
+      self.numbers(recorder.sessions[0]),
+      [CommandNumber.PING, CommandNumber.GET_BASECODE_VERSION],
+    )
     self.assertGreater(len(self.numbers(recorder.sessions[1])), 5)
 
   async def test_every_frame_carries_its_reply(self):

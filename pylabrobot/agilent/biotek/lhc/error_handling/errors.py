@@ -35,6 +35,10 @@ NOT_ACKNOWLEDGED = 0x6048
 REPLY_TIMED_OUT = 0x6053
 PORT_WOULD_NOT_OPEN = 0x6058
 
+# What the host finds in the firmware version record itself, rather than in a reply's status.
+WRONG_BASECODE_PART_NUMBER = 0x6002
+SETTINGS_DATA_TOO_OLD = 0x6003
+
 _LINK_FAULT_RANGE = (0x8100, 0x81FF)
 _CODE_MASK = 0xFFFF
 _HEX_FROM = 256

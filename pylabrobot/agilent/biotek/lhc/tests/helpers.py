@@ -13,6 +13,7 @@ from functools import lru_cache
 
 from pylabrobot.agilent.biotek.lhc.comm.link import ACK, Link
 from pylabrobot.agilent.biotek.lhc.comm.transport import Transport
+from pylabrobot.agilent.biotek.lhc.devices.handshake import BASECODE_PART_NUMBERS
 from pylabrobot.agilent.biotek.lhc.devices.instrument_settings import InstrumentSettings
 from pylabrobot.agilent.biotek.lhc.enums.instrument.basecode import Basecode
 from pylabrobot.agilent.biotek.lhc.enums.instrument.instrument_family import InstrumentFamily
@@ -255,6 +256,33 @@ does not implement those queries -- which is worth testing, but not what most te
 """
 
 
+def part_number_for(family: InstrumentFamily) -> bytes:
+  """The basecode part number a model of one family reports.
+
+  Args:
+    family: Which family the model belongs to.
+
+  Returns:
+    The seven characters, of which the first three are what the handshake reads.
+  """
+  return BASECODE_PART_NUMBERS[family].encode() + b"0000"
+
+
+def version_record(part_number: bytes | None = None, data_version: bytes = b"103  ") -> bytes:
+  """A firmware version record, with the two fields the handshake reads settable.
+
+  Args:
+    part_number: The seven-character basecode part number, defaulting to the original model's.
+    data_version: The five-character settings data version.
+
+  Returns:
+    The record as the instrument writes it.
+  """
+  if part_number is None:
+    part_number = part_number_for(InstrumentFamily.EL406)
+  return part_number + b"2.22.6  " + b"ABCD" + b"DCBA" + data_version + b"1.0" + b"2.0" + b" " * 12
+
+
 ANSWERS = {
   CommandNumber.GET_SYRINGE_MANIFOLD_INSTALLED: bytes([1]),
   CommandNumber.GET_SYRINGE_BOX_INFO: bytes([1, 2]),
@@ -267,9 +295,7 @@ ANSWERS = {
   CommandNumber.GET_IS_PERI_HALF_UL_SUPPORTED: bytes([1]),
   CommandNumber.GET_Y_AXIS_INSTALLED: bytes([1]),
   CommandNumber.GET_SERIAL_NUMBER: b"SN0001".ljust(24),
-  CommandNumber.GET_BASECODE_VERSION: (
-    b"7100000" + b"2.22.6  " + b"ABCD" + b"DCBA" + b"1.000" + b"1.0" + b"2.0" + b" " * 12
-  ),
+  CommandNumber.GET_BASECODE_VERSION: version_record(),
   CommandNumber.IS_STRIP_WASHER_BOX_CONNECTED: bytes([0]),
   CommandNumber.GET_STRIP_WASHER_HW_INSTALLED: bytes([0]),
   CommandNumber.GET_WHICH_BASECODE_IS_INSTALLED: bytes([0]),
