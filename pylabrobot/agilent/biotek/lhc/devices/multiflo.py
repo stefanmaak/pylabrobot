@@ -9,7 +9,12 @@ from typing import ClassVar
 from pylabrobot.agilent.biotek.lhc.comm.link import Link
 from pylabrobot.agilent.biotek.lhc.comm.transport import DEFAULT_READ_TIMEOUT, Transport
 from pylabrobot.agilent.biotek.lhc.devices import batch as batching
-from pylabrobot.agilent.biotek.lhc.devices import execution, settings_document, settings_query
+from pylabrobot.agilent.biotek.lhc.devices import (
+  execution,
+  handshake,
+  settings_document,
+  settings_query,
+)
 from pylabrobot.agilent.biotek.lhc.devices.build_rules import rules_for
 from pylabrobot.agilent.biotek.lhc.devices.components.peristaltic_dispenser import (
   PeristalticDispenser,
@@ -45,7 +50,6 @@ from pylabrobot.agilent.biotek.lhc.serialization.commands.queries import (
   FirmwareVersion,
   GetFirmwareVersion,
   GetSerialNumber,
-  Ping,
 )
 from pylabrobot.agilent.biotek.lhc.serialization.commands.run_control import RunStatus
 from pylabrobot.resources import Plate
@@ -167,7 +171,7 @@ class MultiFlo:
       )
     link = self._runtime.link
     await link.setup()
-    await link.request(Ping(), operation="ping")
+    await handshake.check_communications(link)
     self._runtime.reported_settings = await settings_query.read_settings(link, self.family)
     self._runtime.forget_instrument_facts()
     logger.info("%s is ready: %s", self.name, self._runtime.settings)

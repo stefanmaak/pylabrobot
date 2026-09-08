@@ -24,7 +24,13 @@ from pylabrobot.agilent.biotek.lhc.enums.instrument.strip_washer_manifold import
 from pylabrobot.agilent.biotek.lhc.enums.plates.plate_type import PlateType
 from pylabrobot.agilent.biotek.lhc.enums.steps.step_action import StepAction
 from pylabrobot.agilent.biotek.lhc.enums.steps.step_type import StepType
-from pylabrobot.agilent.biotek.lhc.error_handling import RejectedError
+from pylabrobot.agilent.biotek.lhc.devices.handshake import BASECODE_PART_NUMBERS
+from pylabrobot.agilent.biotek.lhc.error_handling import (
+  SETTINGS_DATA_TOO_OLD,
+  WRONG_BASECODE_PART_NUMBER,
+  FirmwareError,
+  RejectedError,
+)
 from pylabrobot.agilent.biotek.lhc.protocols.protocol import Protocol, ProtocolEntry
 from pylabrobot.agilent.biotek.lhc.protocols.steps.step_parts.positioning import Positioning
 from pylabrobot.agilent.biotek.lhc.protocols.steps.steps.manifold_aspirate import ManifoldAspirate
@@ -44,6 +50,36 @@ from pylabrobot.agilent.biotek.lhc.tests.helpers import (
   make_plate,
 )
 
+_VERSION = CommandNumber.GET_BASECODE_VERSION
+
+
+def _part_number(family: InstrumentFamily) -> bytes:
+  """The basecode part number a model of one family reports.
+
+  Args:
+    family: Which family the model belongs to.
+
+  Returns:
+    The seven characters, of which the first three are what the handshake reads.
+  """
+  return BASECODE_PART_NUMBERS[family].encode() + b"0000"
+
+
+def _version(part_number: bytes | None = None, data_version: bytes = b"103  ") -> bytes:
+  """A firmware version record, with the two fields the handshake reads settable.
+
+  Args:
+    part_number: The seven-character basecode part number, defaulting to the original model's.
+    data_version: The five-character settings data version.
+
+  Returns:
+    The record as the instrument writes it.
+  """
+  if part_number is None:
+    part_number = _part_number(InstrumentFamily.EL406)
+  return part_number + b"2.22.6  " + b"ABCD" + b"DCBA" + data_version + b"1.0" + b"2.0" + b" " * 12
+
+
 ANSWERS = {
   CommandNumber.GET_SYRINGE_MANIFOLD_INSTALLED: bytes([1]),
   CommandNumber.GET_SYRINGE_BOX_INFO: bytes([1, 2]),
@@ -56,9 +92,7 @@ ANSWERS = {
   CommandNumber.GET_IS_PERI_HALF_UL_SUPPORTED: bytes([1]),
   CommandNumber.GET_Y_AXIS_INSTALLED: bytes([1]),
   CommandNumber.GET_SERIAL_NUMBER: b"SN0001".ljust(24),
-  CommandNumber.GET_BASECODE_VERSION: (
-    b"7100000" + b"2.22.6  " + b"ABCD" + b"DCBA" + b"1.000" + b"1.0" + b"2.0" + b" " * 12
-  ),
+  _VERSION: _version(),
   CommandNumber.IS_STRIP_WASHER_BOX_CONNECTED: bytes([0]),
   CommandNumber.GET_STRIP_WASHER_HW_INSTALLED: bytes([0]),
   CommandNumber.GET_WHICH_BASECODE_IS_INSTALLED: bytes([0]),
@@ -103,7 +137,12 @@ class DeviceTestCase(unittest.IsolatedAsyncioTestCase):
     Returns:
       The device and the fake instrument behind it.
     """
-    io = FakeInstrument(answers=ANSWERS if answers is None else answers)
+    answers = dict(ANSWERS if answers is None else answers)
+    # A test that named its own version record keeps it; every other one gets the record a model of
+    # this family reports, since the handshake refuses one built for another family.
+    if answers.get(_VERSION) == _version():
+      answers[_VERSION] = _version(part_number=_part_number(cls.family))
+    io = FakeInstrument(answers=answers)
     device = cls(port="fake", io=io)
     # The fake instrument answers at once, so none of the pacing a real one needs is wanted here.
     device.settle = 0
@@ -125,6 +164,37 @@ class TestTheLifecycle(DeviceTestCase):
     """Setup proves something is listening before reading anything."""
     _, io = await self.build(EL406)
     self.assertEqual(io.sent[0], int(CommandNumber.PING))
+
+  async def test_setup_reads_the_version_record_next(self):
+    """Setup reads the version record next, which is what says what is listening."""
+    _, io = await self.build(EL406)
+    self.assertEqual(io.sent[1], int(CommandNumber.GET_BASECODE_VERSION))
+
+  async def test_setup_refuses_a_basecode_built_for_another_family(self):
+    """Setup refuses a basecode built for another family."""
+    answers = {**ANSWERS, _VERSION: _version(part_number=_part_number(InstrumentFamily.MULTIFLO))}
+    with self.assertRaises(FirmwareError) as raised:
+      await self.build(Washer405TS, answers=answers)
+    self.assertEqual(raised.exception.code, WRONG_BASECODE_PART_NUMBER)
+
+  async def test_setup_accepts_the_basecode_of_the_model_being_driven(self):
+    """Setup accepts the basecode of the model being driven."""
+    answers = {**ANSWERS, _VERSION: _version(part_number=b"1170202")}
+    device, _ = await self.build(Washer405TS, answers=answers)
+    self.assertIs(device.settings.family, InstrumentFamily.MODEL_405_TS)
+
+  async def test_setup_refuses_settings_data_older_than_it_reads(self):
+    """Setup refuses settings data older than this package reads."""
+    answers = {**ANSWERS, _VERSION: _version(data_version=b"99   ")}
+    with self.assertRaises(FirmwareError) as raised:
+      await self.build(EL406, answers=answers)
+    self.assertEqual(raised.exception.code, SETTINGS_DATA_TOO_OLD)
+
+  async def test_setup_refuses_firmware_that_keeps_no_version_record(self):
+    """Setup refuses firmware that keeps no version record."""
+    with self.assertRaises(FirmwareError) as raised:
+      await self.build(EL406, answers={**ANSWERS, _VERSION: b""})
+    self.assertEqual(raised.exception.code, WRONG_BASECODE_PART_NUMBER)
 
   async def test_a_device_reports_its_own_name(self):
     """A device reports its own name."""
