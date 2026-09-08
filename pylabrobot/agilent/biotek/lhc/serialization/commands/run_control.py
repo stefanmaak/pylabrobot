@@ -44,11 +44,15 @@ class ExitProtocol(Command):
 
 
 class AbortStep(Command):
-  """Stop the running step."""
+  """Stop the running step.
+
+  Acknowledged and then not answered: the instrument stops what it is doing and homes itself, and
+  says nothing at all until it is home. Whether it stopped is learned by asking afterwards.
+  """
 
   def __init__(self) -> None:
     """Build the command."""
-    super().__init__(number=CommandNumber.ABORT_STEP)
+    super().__init__(number=CommandNumber.ABORT_STEP, expects_reply=False)
 
 
 class PauseStep(Command):
@@ -90,10 +94,16 @@ class RunStep(Command):
 class RunStatus:
   """What a status poll reports.
 
+  The countdown and the phase go together, and both are empty most of the time: a dispense, an
+  aspirate, a prime, or a wash between its stages counts nothing down and reports no phase. A
+  countdown is not how far through the step the instrument is -- it is the time left in the one
+  phase it is in, so a step that ends in a soak reports 0 until it reaches the soak.
+
   Attributes:
     state: What the instrument is doing.
-    remaining: Seconds left in the current phase, or 0 when nothing is counting down.
-    activity: Which timed phase the step is in.
+    remaining: Seconds left in the timed phase the instrument is in, and 0 whenever it is in none
+      -- which is most of every ordinary step.
+    activity: Which timed phase the step is in, and ``NONE`` whenever it is in none.
   """
 
   state: RunState = RunState.READY

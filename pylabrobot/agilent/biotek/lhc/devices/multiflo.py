@@ -419,10 +419,15 @@ class MultiFlo:
     )
 
   async def abort(self) -> None:
-    """Stop the running step.
+    """Stop the running step and wait for the instrument to come back.
+
+    The instrument stops where it is and homes itself, and is off the wire for as long as that
+    motion lasts: it acknowledges the request, answers nothing while it homes, and reports itself
+    ready once it is home. The step does not finish -- whatever was waiting for it is told it was
+    stopped.
 
     Raises:
-      BiotekError: If the instrument will not stop.
+      BiotekError: If the instrument does not come back, or reports a fault when it does.
     """
     await execution.abort(self._runtime)
 

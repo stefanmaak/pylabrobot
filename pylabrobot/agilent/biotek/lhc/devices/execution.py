@@ -22,7 +22,7 @@ from pylabrobot.agilent.biotek.lhc.devices.runtime import Runtime
 from pylabrobot.agilent.biotek.lhc.enums.motion.carrier_type import CarrierType
 from pylabrobot.agilent.biotek.lhc.enums.plates.plate_restriction import PlateRestriction
 from pylabrobot.agilent.biotek.lhc.enums.status.run_state import RunState
-from pylabrobot.agilent.biotek.lhc.error_handling import ErrorKind, fail
+from pylabrobot.agilent.biotek.lhc.error_handling import ErrorKind, LinkError, fail
 from pylabrobot.agilent.biotek.lhc.protocols.protocol import Protocol
 from pylabrobot.agilent.biotek.lhc.protocols.steps.step_interface import Step
 from pylabrobot.agilent.biotek.lhc.protocols.validation.protocol_pass import validate
@@ -48,6 +48,13 @@ POLL_INTERVAL = 0.1
 
 READY_TIMEOUT = 15.0
 """How long to wait for the instrument to go idle before sending a step, in seconds."""
+
+ABORT_TIMEOUT = 30.0
+"""How long to wait for a stopped instrument to come back, in seconds.
+
+Stopping is a motion: the instrument leaves the wire while it homes, which takes it well past the
+patience a single exchange has. What is waited for here is the whole of it.
+"""
 
 STEP_TIMEOUT = 3600.0
 """How long to wait for a step to finish, in seconds. A wash with a long soak is minutes of it."""
@@ -138,6 +145,7 @@ async def run_step(
     KeyError: If no command runs that kind of step.
   """
   plate_type = runtime.plate_type
+  runtime.aborting = False
   await wait_until_idle(runtime)
   command = RunStep(command_for_step(step), plate_type, step.to_bytes(runtime.settings))
   await runtime.link.request(command, operation=step.step_type.name)
@@ -164,6 +172,13 @@ async def _wait_for_step(runtime: Runtime, step: Step, timeout: float, interval:
   while True:
     reported = await status(runtime)
     if reported.state not in _RUNNING:
+      if runtime.aborting or reported.state is RunState.STOPPED:
+        runtime.aborting = False
+        raise fail(
+          ErrorKind.ABORTED,
+          f"{step.step_type.name} was stopped on {runtime.link.name}",
+          operation=step.step_type.name,
+        )
       logger.info("%s finished on %s", step.step_type.name, runtime.link.name)
       return
     if reported.state is RunState.PAUSED and not paused:
@@ -256,16 +271,46 @@ async def can_run(runtime: Runtime, steps: list[Step]) -> ValidationReport:
   return report
 
 
-async def abort(runtime: Runtime) -> None:
-  """Stop the running step.
+async def abort(
+  runtime: Runtime, timeout: float = ABORT_TIMEOUT, interval: float = POLL_INTERVAL
+) -> None:
+  """Stop the running step and wait for the instrument to come back.
+
+  The instrument acknowledges the request, stops where it is, homes itself, and answers nothing
+  until it is home, so a poll that finds out whether it stopped can go unanswered for as long as
+  that motion lasts. One that does is not a failure here -- it is the instrument being busy -- so
+  it is retried until the instrument answers or the time is up.
 
   Args:
     runtime: The device's state.
+    timeout: How long to wait for it to come back, in seconds.
+    interval: How long to wait between polls, in seconds.
 
   Raises:
-    BiotekError: If the instrument will not stop.
+    BiotekError: If the instrument does not come back, or reports a fault when it does.
   """
-  await runtime.link.request(AbortStep(), operation="abort")
+  runtime.aborting = True
+  try:
+    await runtime.link.request(AbortStep(), operation="abort")
+  except BaseException:
+    # A request that never went out has stopped nothing, and must not have the step it was aimed
+    # at reported as stopped.
+    runtime.aborting = False
+    raise
+  deadline = asyncio.get_running_loop().time() + timeout
+  while True:
+    try:
+      if (await status(runtime)).state not in _RUNNING:
+        return
+    except LinkError:
+      logger.debug("%s is not answering while it stops", runtime.link.name)
+    if asyncio.get_running_loop().time() >= deadline:
+      raise fail(
+        ErrorKind.LINK,
+        f"{runtime.link.name} was asked to stop and has not come back after {timeout:g}s",
+        operation="abort",
+      )
+    await asyncio.sleep(interval)
 
 
 async def pause(runtime: Runtime) -> None:

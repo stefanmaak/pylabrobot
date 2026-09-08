@@ -132,12 +132,14 @@ class Link:
       operation: What is being attempted, for the message of any exception raised.
 
     Returns:
-      The reply's answer, with the instrument's status split off.
+      The reply's answer, with the instrument's status split off, and nothing at all for a command
+      the instrument does not answer.
 
     Raises:
       LinkError: If the link is closed, the write fails, nothing acknowledges the command, or the
         reply does not arrive intact.
-      BiotekError: A subclass matching what failed, if the instrument reports an error status.
+      BiotekError: A subclass matching what failed, if the instrument reports an error status. A
+        command that is not answered reports no status, so nothing is raised for one.
     """
     if not self._open:
       raise fail(ErrorKind.LINK, f"{self._name} is not open", operation=operation or "request")
@@ -146,6 +148,8 @@ class Link:
       await self.purge()
       await self._write(command.to_bytes(), operation)
       await self._read_ack(operation)
+      if not command.expects_reply:
+        return b""
       header, payload = await self._read_reply(command, timeout, operation)
     if not command.reply_is_intact(header, payload):
       raise fail(

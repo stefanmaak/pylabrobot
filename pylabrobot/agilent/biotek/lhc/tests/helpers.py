@@ -110,6 +110,8 @@ class FakeInstrument(Transport):
     busy_after_step: Whether to report a running step forever once one has been sent, which is what
       a step that never finishes looks like. The polls before it still report the instrument idle,
       so a caller gets as far as sending the step.
+    stops: Whether to report itself stopped rather than ready once it is no longer running, which
+      is what a step stopped from the instrument's own keypad looks like.
 
   Attributes:
     sent: Every command number written, in order, so a test can assert what was sent and when.
@@ -122,12 +124,14 @@ class FakeInstrument(Transport):
     busy_polls: int = 0,
     status: int = 0,
     busy_after_step: bool = False,
+    stops: bool = False,
   ) -> None:
     super().__init__(port="fake", timeout=1.0)
     self.answers = dict(answers) if answers else {}
     self.busy_polls = busy_polls
     self.status = status
     self.busy_after_step = busy_after_step
+    self.stops = stops
     self._step_sent = False
     self.sent: list[int] = []
     self.payloads: list[bytes] = []
@@ -186,6 +190,9 @@ class FakeInstrument(Transport):
     """
     self.sent.append(header.number)
     self.payloads.append(payload)
+    if header.number == int(CommandNumber.ABORT_STEP):
+      # Stopping ends the step, so an instrument that was reporting one no longer does.
+      self._step_sent = False
     self._out += bytes([ACK]) + self._reply(header.number)
 
   def _reply(self, number: int) -> bytes:
@@ -217,7 +224,10 @@ class FakeInstrument(Transport):
     if number == CommandNumber.GET_PROTOCOL_STATUS:
       self._polls += 1
       running = self._polls <= self.busy_polls or (self.busy_after_step and self._step_sent)
-      state = RunState.BUSY if running else RunState.READY
+      if running:
+        state = RunState.BUSY
+      else:
+        state = RunState.STOPPED if self.stops else RunState.READY
       return int(state).to_bytes(2, "little") + (0).to_bytes(4, "little") + bytes([0])
     for command, answer in self.answers.items():
       if int(command) == number:
@@ -259,6 +269,7 @@ def fake_link(
   status: int = 0,
   family: InstrumentFamily = InstrumentFamily.EL406,
   busy_after_step: bool = False,
+  io: FakeInstrument | None = None,
 ) -> tuple[Link, FakeInstrument]:
   """A link onto a fake instrument, and the instrument itself.
 
@@ -268,11 +279,13 @@ def fake_link(
     status: The status word to answer with.
     family: Which family the link decodes error codes for.
     busy_after_step: Whether a step, once sent, never finishes.
+    io: A transport to use instead of a plain fake, for a test that needs one that misbehaves.
 
   Returns:
     The link, unopened, and the transport behind it.
   """
-  io = FakeInstrument(
-    answers=answers, busy_polls=busy_polls, status=status, busy_after_step=busy_after_step
-  )
+  if io is None:
+    io = FakeInstrument(
+      answers=answers, busy_polls=busy_polls, status=status, busy_after_step=busy_after_step
+    )
   return Link(port="fake", family=family, name="fake instrument", timeout=1.0, io=io), io

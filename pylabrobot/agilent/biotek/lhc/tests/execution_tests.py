@@ -7,6 +7,7 @@ exception, and the check that decides whether a protocol may run at all.
 
 from __future__ import annotations
 
+import asyncio
 import unittest
 
 from pylabrobot.agilent.biotek.lhc.devices import execution
@@ -18,11 +19,16 @@ from pylabrobot.agilent.biotek.lhc.enums.instrument.instrument_family import Ins
 from pylabrobot.agilent.biotek.lhc.enums.instrument.syringe_box_type import SyringeBoxType
 from pylabrobot.agilent.biotek.lhc.enums.instrument.syringe_manifold import SyringeManifold
 from pylabrobot.agilent.biotek.lhc.enums.status.run_state import RunState
-from pylabrobot.agilent.biotek.lhc.error_handling import BiotekError, RejectedError
+from pylabrobot.agilent.biotek.lhc.error_handling import (
+  AbortedError,
+  BiotekError,
+  RejectedError,
+)
 from pylabrobot.agilent.biotek.lhc.plate_geometry.resolution import resolve
 from pylabrobot.agilent.biotek.lhc.protocols.steps.steps.manifold_prime import ManifoldPrime
 from pylabrobot.agilent.biotek.lhc.protocols.steps.steps.syringe_prime import SyringePrime
 from pylabrobot.agilent.biotek.lhc.serialization.command_numbers import CommandNumber
+from pylabrobot.agilent.biotek.lhc.serialization.frame import HEADER_LENGTH, Header
 from pylabrobot.agilent.biotek.lhc.tests.helpers import (
   ACCEPTS_EVERY_PLATE,
   FakeInstrument,
@@ -31,6 +37,37 @@ from pylabrobot.agilent.biotek.lhc.tests.helpers import (
 )
 
 FAMILY = InstrumentFamily.EL406
+
+_STARTUP_POLLS = 100
+"""How many turns of the loop to give a step to reach the wire."""
+
+
+class Homing(FakeInstrument):
+  """A fake that leaves one status poll unanswered, the way an instrument moving its motors does.
+
+  Args:
+    **kwargs: Passed to the plain fake.
+
+  Attributes:
+    ignored: How many more polls to leave unanswered.
+  """
+
+  def __init__(self, **kwargs) -> None:
+    super().__init__(**kwargs)
+    self.ignored = 1
+
+  async def write(self, data: bytes) -> None:
+    """Take a frame, and answer it unless it is the poll being ignored.
+
+    Args:
+      data: The bytes written.
+    """
+    header = Header.from_bytes(data[:HEADER_LENGTH])
+    if header.number == int(CommandNumber.GET_PROTOCOL_STATUS) and self.ignored:
+      self.ignored -= 1
+      self.sent.append(header.number)
+      return
+    await super().write(data)
 
 
 class ExecutionTestCase(unittest.IsolatedAsyncioTestCase):
@@ -43,6 +80,7 @@ class ExecutionTestCase(unittest.IsolatedAsyncioTestCase):
     with_plate: bool = True,
     busy_after_step: bool = False,
     answers: dict | None = None,
+    io: FakeInstrument | None = None,
   ) -> tuple[Runtime, FakeInstrument]:
     """Build the state and open the link.
 
@@ -52,6 +90,7 @@ class ExecutionTestCase(unittest.IsolatedAsyncioTestCase):
       with_plate: Whether a plate is on the carrier.
       busy_after_step: Whether a step, once sent, never finishes.
       answers: What the instrument answers, defaulting to one that accepts every plate.
+      io: A transport to use instead of a plain fake.
 
     Returns:
       The state and the fake instrument behind it.
@@ -62,6 +101,7 @@ class ExecutionTestCase(unittest.IsolatedAsyncioTestCase):
       status=status,
       family=FAMILY,
       busy_after_step=busy_after_step,
+      io=io,
     )
     state = Runtime(
       link=link,
@@ -263,11 +303,61 @@ class TestCheckingAProtocol(ExecutionTestCase):
 class TestRunControl(ExecutionTestCase):
   """Stopping a running step, and letting it go on."""
 
-  async def test_abort_sends_its_own_command(self):
-    """Abort sends its own command."""
+  async def test_abort_sends_its_own_command_and_then_asks_whether_it_worked(self):
+    """Abort sends its own command and then asks whether it worked."""
     state, io = await self.opened()
     await execution.abort(state)
-    self.assertEqual(io.sent, [int(CommandNumber.ABORT_STEP)])
+    self.assertEqual(
+      io.sent, [int(CommandNumber.ABORT_STEP), int(CommandNumber.GET_PROTOCOL_STATUS)]
+    )
+
+  async def test_abort_waits_for_an_instrument_that_is_still_stopping(self):
+    """Abort waits for an instrument that is still stopping."""
+    state, io = await self.opened(busy_polls=3)
+    await execution.abort(state, interval=0)
+    self.assertGreaterEqual(io.sent.count(int(CommandNumber.GET_PROTOCOL_STATUS)), 4)
+
+  async def test_abort_retries_a_poll_that_goes_unanswered(self):
+    """Abort retries a poll that goes unanswered, which is what homing looks like."""
+    io = Homing(answers=ACCEPTS_EVERY_PLATE)
+    state, _ = await self.opened(io=io)
+    await execution.abort(state, interval=0)
+    self.assertEqual(io.ignored, 0)
+    self.assertEqual(io.sent[-1], int(CommandNumber.GET_PROTOCOL_STATUS))
+
+  async def test_abort_gives_up_on_an_instrument_that_never_comes_back(self):
+    """Abort gives up on an instrument that never comes back."""
+    state, _ = await self.opened(busy_polls=1000)
+    with self.assertRaisesRegex(BiotekError, "has not come back"):
+      await execution.abort(state, timeout=0, interval=0)
+
+  async def test_the_step_that_was_stopped_reports_that_it_was(self):
+    """The step that was stopped reports that it was, rather than reporting it finished."""
+    state, io = await self.opened(busy_after_step=True)
+    async with batch(state):
+      running = asyncio.create_task(execution.run_step(state, ManifoldPrime(), interval=0))
+      for _ in range(_STARTUP_POLLS):
+        if int(CommandNumber.MANIFOLD_PRIME) in io.sent:
+          break
+        await asyncio.sleep(0)
+      await execution.abort(state, interval=0)
+      with self.assertRaises(AbortedError):
+        await running
+
+  async def test_an_instrument_stopped_from_its_keypad_reports_that_too(self):
+    """An instrument stopped from its keypad reports that too, with nothing having asked it to."""
+    state, _ = await self.opened(io=FakeInstrument(answers=ACCEPTS_EVERY_PLATE, stops=True))
+    async with batch(state):
+      with self.assertRaises(AbortedError):
+        await execution.run_step(state, ManifoldPrime(), interval=0)
+
+  async def test_a_new_step_is_not_a_stopped_one(self):
+    """A new step is not a stopped one, whatever was asked of the last."""
+    state, _ = await self.opened()
+    state.aborting = True
+    async with batch(state):
+      await execution.run_step(state, ManifoldPrime(), interval=0)
+    self.assertFalse(state.aborting)
 
   async def test_pause_sends_its_own_command(self):
     """Pause sends its own command."""
