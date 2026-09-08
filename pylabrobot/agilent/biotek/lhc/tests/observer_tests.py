@@ -8,7 +8,9 @@ raises, or that is simply absent, has to leave the exchange exactly as it was.
 
 from __future__ import annotations
 
+import asyncio
 import unittest
+from contextlib import suppress
 
 from pylabrobot.agilent.biotek.lhc.comm.observer import (
   LinkObserver,
@@ -25,6 +27,10 @@ from pylabrobot.agilent.biotek.lhc.protocols.steps.steps.shake_soak import Shake
 from pylabrobot.agilent.biotek.lhc.serialization.command_numbers import CommandNumber
 from pylabrobot.agilent.biotek.lhc.serialization.frame import HEADER_LENGTH, Header
 from pylabrobot.agilent.biotek.lhc.tests.helpers import PUMP_READY, FakeInstrument, make_plate
+
+
+_STARTUP_POLLS = 100
+"""How many turns of the loop to give a step to reach the wire before calling it stuck."""
 
 
 def a_step() -> ShakeSoak:
@@ -220,6 +226,170 @@ class TestWhatIsReported(ObserverTestCase):
     device._runtime.link.observer = recorder  # noqa: SLF001 -- the seam a harness attaches to.
     await device.get_serial_number()
     self.assertEqual([session.operation.name for session in recorder.sessions], ["serial number"])
+
+
+class TestTwoCallersAtOnce(unittest.IsolatedAsyncioTestCase):
+  """Which operation a frame belongs to when two of them overlap.
+
+  A step is polled by the task that ran it, and pausing, resuming or aborting it comes from another
+  task while those polls are going out. Every frame has to land in the session of the operation
+  that sent it, or a recording cannot be replayed and a comparison measures the wrong frames
+  against the wrong call. The recorder is driven directly here: the interleaving is the whole
+  point, so it is written out rather than left to the scheduler.
+  """
+
+  @staticmethod
+  def names(recorder: SessionRecorder) -> list[str]:
+    """Which operations a recorder collected.
+
+    Args:
+      recorder: What collected them.
+
+    Returns:
+      The names, in the order the sessions finished.
+    """
+    return [session.operation.name for session in recorder.sessions]
+
+  async def test_an_operation_inside_another_callers_is_its_own_session(self):
+    recorder = SessionRecorder()
+    polling, released = asyncio.Event(), asyncio.Event()
+
+    async def poll() -> None:
+      """Send a status poll that is still open when the other caller aborts."""
+      await recorder.operation_started(Operation("status"))
+      await recorder.frame_sent(b"poll")
+      polling.set()
+      await released.wait()
+      await recorder.frame_received(b"reply", b"")
+      await recorder.operation_finished(Operation("status"), None)
+
+    poller = asyncio.create_task(poll())
+    await polling.wait()
+    await recorder.operation_started(Operation("abort"))
+    await recorder.frame_sent(b"abort")
+    await recorder.operation_finished(Operation("abort"), None)
+    released.set()
+    await poller
+
+    self.assertEqual(self.names(recorder), ["abort", "status"])
+    self.assertEqual(recorder.sessions[0].sent, [b"abort"])
+    self.assertEqual(recorder.sessions[1].sent, [b"poll"])
+
+  async def test_a_reply_lands_on_the_frame_its_own_caller_sent(self):
+    recorder = SessionRecorder()
+    polling, released = asyncio.Event(), asyncio.Event()
+
+    async def poll() -> None:
+      """Send a status poll whose reply comes back after the other caller has been and gone."""
+      await recorder.operation_started(Operation("status"))
+      await recorder.frame_sent(b"poll")
+      polling.set()
+      await released.wait()
+      await recorder.frame_received(b"poll reply", b"")
+      await recorder.operation_finished(Operation("status"), None)
+
+    poller = asyncio.create_task(poll())
+    await polling.wait()
+    await recorder.operation_started(Operation("abort"))
+    await recorder.frame_sent(b"abort")
+    await recorder.frame_received(b"abort reply", b"")
+    await recorder.operation_finished(Operation("abort"), None)
+    released.set()
+    await poller
+
+    self.assertEqual(recorder.sessions[0].exchanges[0].received, b"abort reply")
+    self.assertEqual(recorder.sessions[1].exchanges[0].received, b"poll reply")
+
+  async def test_nesting_in_one_caller_is_still_one_session(self):
+    recorder = SessionRecorder()
+    await recorder.operation_started(Operation("run step"))
+    await recorder.operation_started(Operation("status"))
+    await recorder.frame_sent(b"inner")
+    await recorder.operation_finished(Operation("status"), None)
+    await recorder.operation_finished(Operation("run step"), None)
+    self.assertEqual(self.names(recorder), ["run step"])
+    self.assertEqual(recorder.sessions[0].sent, [b"inner"])
+
+  async def test_a_caller_is_forgotten_once_its_operation_closes(self):
+    recorder = SessionRecorder()
+    for _ in range(3):
+      await recorder.operation_started(Operation("status"))
+      await recorder.operation_finished(Operation("status"), None)
+    self.assertEqual(len(recorder.sessions), 3)
+    self.assertFalse(recorder._open)
+    self.assertFalse(recorder._depth)
+
+
+class TestRunControlWhileAStepRuns(ObserverTestCase):
+  """What the recorder ends up holding when a running step is paused, resumed or aborted."""
+
+  async def running_step(self, recorder: SessionRecorder):
+    """A device with a step that has been sent and reports itself running forever.
+
+    Args:
+      recorder: What is watching the link.
+
+    Returns:
+      The device and the task running the step, which the caller stops when done with it.
+    """
+    device = await self.built(recorder, busy_after_step=True)
+    device.set_plate(make_plate())
+    running = asyncio.create_task(device.run_step(a_step()))
+    for _ in range(_STARTUP_POLLS):
+      if self.named(recorder, "run step"):
+        return device, running
+      await asyncio.sleep(0)
+    running.cancel()
+    self.fail("the step never reached the wire")
+
+  @staticmethod
+  async def stopped(running: asyncio.Task) -> None:
+    """Stop waiting for a step that never finishes.
+
+    Args:
+      running: The task running it.
+    """
+    running.cancel()
+    with suppress(asyncio.CancelledError):
+      await running
+
+  async def test_a_pause_is_its_own_operation(self):
+    recorder = SessionRecorder()
+    device, running = await self.running_step(recorder)
+    await device.pause()
+    await self.stopped(running)
+    paused = self.named(recorder, "pause")
+    self.assertEqual(len(paused), 1)
+    self.assertEqual(self.numbers(paused[0]), [CommandNumber.PAUSE_STEP])
+
+  async def test_a_resume_is_its_own_operation(self):
+    recorder = SessionRecorder()
+    device, running = await self.running_step(recorder)
+    await device.pause()
+    await device.resume()
+    await self.stopped(running)
+    resumed = self.named(recorder, "resume")
+    self.assertEqual(len(resumed), 1)
+    self.assertEqual(self.numbers(resumed[0]), [CommandNumber.RESUME_STEP])
+
+  async def test_an_abort_is_its_own_operation(self):
+    recorder = SessionRecorder()
+    device, running = await self.running_step(recorder)
+    await device.abort()
+    await self.stopped(running)
+    aborted = self.named(recorder, "abort")
+    self.assertEqual(len(aborted), 1)
+    self.assertEqual(self.numbers(aborted[0]), [CommandNumber.ABORT_STEP])
+
+  async def test_the_polls_alongside_them_hold_nothing_else(self):
+    recorder = SessionRecorder()
+    device, running = await self.running_step(recorder)
+    await device.abort()
+    await self.stopped(running)
+    polls = self.named(recorder, "status")
+    self.assertTrue(polls)
+    for poll in polls:
+      self.assertEqual(self.numbers(poll), [CommandNumber.GET_PROTOCOL_STATUS])
 
 
 class TestBeingWatchedChangesNothing(ObserverTestCase):

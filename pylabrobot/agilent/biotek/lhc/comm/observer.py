@@ -12,6 +12,7 @@ are logged rather than raised, and a link with no observer does exactly what it 
 from __future__ import annotations
 
 import abc
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
@@ -156,54 +157,68 @@ class LinkObserver(abc.ABC):
 class SessionRecorder(LinkObserver):
   """Collects each operation's frames, and keeps the ones the caller asks it to keep.
 
-  This is the observer everything else is built on: a recorder holds the operation being carried
-  out and the exchanges it has taken so far, and :meth:`session_finished` is where a subclass does
-  something with a completed one. On its own it keeps every session in :attr:`sessions`.
+  This is the observer everything else is built on: a recorder holds the operations being carried
+  out and the exchanges each has taken so far, and :meth:`session_finished` is where a subclass
+  does something with a completed one. On its own it keeps every session in :attr:`sessions`.
+
+  One session per caller, not one per recorder. Operations on a link overlap -- a step is polled by
+  the task that started it while another task pauses or aborts it -- so the frames of each have to
+  land in the session of the operation that sent them. Which task made the call is what tells them
+  apart.
 
   Attributes:
-    sessions: The completed sessions, oldest first.
+    sessions: The completed sessions, in the order they finished.
   """
 
   def __init__(self) -> None:
     self.sessions: list[Session] = []
-    self._open: Session | None = None
-    self._depth = 0
+    self._open: dict[object, Session] = {}
+    self._depth: dict[object, int] = {}
 
   async def operation_started(self, operation: Operation) -> None:
-    """Open a session, unless one is already open.
+    """Open a session, unless this caller already has one open.
 
     A nested operation is folded into the one around it, so an operation that brackets itself
-    inside a larger one is reported once, as part of the larger one.
+    inside a larger one is reported once, as part of the larger one. Nesting is per caller: an
+    operation another task starts meanwhile is its own session, not part of this one.
 
     Args:
       operation: What the device was asked to do.
     """
-    self._depth += 1
-    if self._depth == 1:
-      self._open = Session(operation=operation)
+    caller = _caller()
+    depth = self._depth.get(caller, 0) + 1
+    self._depth[caller] = depth
+    if depth == 1:
+      self._open[caller] = Session(operation=operation)
 
   async def operation_finished(self, operation: Operation, failure: BaseException | None) -> None:
-    """Close the session and hand it over.
+    """Close this caller's session and hand it over.
 
     Args:
       operation: What the device was asked to do.
       failure: What went wrong, or None when it finished.
     """
-    self._depth = max(self._depth - 1, 0)
-    if self._depth or self._open is None:
+    caller = _caller()
+    depth = max(self._depth.get(caller, 0) - 1, 0)
+    if depth:
+      self._depth[caller] = depth
       return
-    session, self._open = self._open, None
+    self._depth.pop(caller, None)
+    session = self._open.pop(caller, None)
+    if session is None:
+      return
     session.failure = failure
     await self.session_finished(session)
 
   async def frame_sent(self, frame: bytes) -> None:
-    """Record a frame going out.
+    """Record a frame going out, against the operation whose caller sent it.
 
     Args:
       frame: The header followed by the payload.
     """
-    if self._open is not None:
-      self._open.exchanges.append(Exchange(sent=frame))
+    session = self._open.get(_caller())
+    if session is not None:
+      session.exchanges.append(Exchange(sent=frame))
 
   async def frame_received(self, header: bytes, payload: bytes) -> None:
     """Record a reply against the frame that asked for it.
@@ -212,9 +227,10 @@ class SessionRecorder(LinkObserver):
       header: The eleven reply header bytes.
       payload: The reply payload.
     """
-    if self._open is None or not self._open.exchanges:
+    session = self._open.get(_caller())
+    if session is None or not session.exchanges:
       return
-    exchange = self._open.exchanges[-1]
+    exchange = session.exchanges[-1]
     exchange.header = header
     exchange.payload = payload
 
@@ -225,6 +241,16 @@ class SessionRecorder(LinkObserver):
       session: The operation and every frame it took.
     """
     self.sessions.append(session)
+
+
+def _caller() -> object:
+  """What an operation and the frames it sends belong to.
+
+  Returns:
+    The task making the calls, which is what separates two operations running at once. None
+    outside a task, where there is only ever one caller anyway.
+  """
+  return asyncio.current_task()
 
 
 @asynccontextmanager
