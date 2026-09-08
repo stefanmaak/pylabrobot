@@ -229,6 +229,32 @@ class TestAskingTheInstrument(unittest.IsolatedAsyncioTestCase):
     self.assertIs(settings.strip_washer_manifold, StripWasherManifold.NOT_INSTALLED)
     self.assertNotIn(int(CommandNumber.GET_STRIP_WASHER_MANIFOLD_TYPE), io.sent)
 
+  async def test_the_random_access_dispenser_hangs_on_the_hardware_answer_alone(self):
+    """The random-access dispenser hangs on the hardware answer alone.
+
+    The manifold needs both the box and the hardware to answer yes; the dispenser needs only the
+    hardware. An instrument whose box is not connected still reports the dispenser, and losing it
+    would refuse every random-access dispense on such an instrument.
+    """
+    answers = dict(self.ANSWERS)
+    answers[CommandNumber.IS_STRIP_WASHER_BOX_CONNECTED] = bytes([0])
+    link, io = fake_link(answers=answers, family=InstrumentFamily.MULTIFLO_FX)
+    await link.setup()
+    settings = await settings_query.read_settings(link, InstrumentFamily.MULTIFLO_FX)
+    self.assertIn(int(CommandNumber.GET_SINGLE_WELL_DISPENSER_INSTALLED), io.sent)
+    self.assertTrue(settings.single_well_enabled)
+    self.assertIs(settings.strip_washer_manifold, StripWasherManifold.NOT_INSTALLED)
+
+  async def test_absent_strip_washer_hardware_stops_the_dispenser_being_asked_for(self):
+    """Absent strip washer hardware stops the dispenser being asked for."""
+    answers = dict(self.ANSWERS)
+    answers[CommandNumber.GET_STRIP_WASHER_HW_INSTALLED] = bytes([0])
+    link, io = fake_link(answers=answers, family=InstrumentFamily.MULTIFLO_FX)
+    await link.setup()
+    settings = await settings_query.read_settings(link, InstrumentFamily.MULTIFLO_FX)
+    self.assertNotIn(int(CommandNumber.GET_SINGLE_WELL_DISPENSER_INSTALLED), io.sent)
+    self.assertFalse(settings.single_well_enabled)
+
   async def test_an_option_that_cannot_be_read_is_a_failure_rather_than_a_default(self):
     """A record read half way would encode every step against the wrong instrument."""
     with self.assertRaises(BiotekError):

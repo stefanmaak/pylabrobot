@@ -12,6 +12,7 @@ import pytest
 from pylabrobot.agilent.biotek.lhc.enums.steps.step_type import StepType
 from pylabrobot.agilent.biotek.lhc.protocols.steps import definition, step_from_definition
 from pylabrobot.agilent.biotek.lhc.protocols.steps.step_parts.groups import Submerge
+from pylabrobot.agilent.biotek.lhc.protocols.steps.step_parts.positioning import Positioning
 from pylabrobot.agilent.biotek.lhc.protocols.steps.steps import STEP_CLASSES
 from pylabrobot.agilent.biotek.lhc.protocols.steps.steps.manifold_aspirate import ManifoldAspirate
 from pylabrobot.agilent.biotek.lhc.protocols.steps.steps.manifold_prime import ManifoldPrime
@@ -20,8 +21,12 @@ from pylabrobot.agilent.biotek.lhc.protocols.steps.steps.peri_dispense import Pe
 from pylabrobot.agilent.biotek.lhc.protocols.steps.steps.peri_random_access_dispense import (
   PeriRandomAccessDispense,
 )
+from pylabrobot.agilent.biotek.lhc.protocols.steps.steps.strip_aspirate import StripAspirate
+from pylabrobot.agilent.biotek.lhc.protocols.steps.steps.strip_dispense import StripDispense
+from pylabrobot.agilent.biotek.lhc.protocols.steps.steps.strip_wash import StripWash
 from pylabrobot.agilent.biotek.lhc.protocols.steps.steps.syringe_dispense import SyringeDispense
 from pylabrobot.agilent.biotek.lhc.protocols.steps.steps.syringe_prime import SyringePrime
+from pylabrobot.agilent.biotek.lhc.protocols.steps.steps.wash_1536 import Wash1536
 
 ALL_COLUMNS = "1" * 48
 """A column selection with every column selected, as a definition spells it."""
@@ -246,3 +251,63 @@ def test_an_empty_field_does_not_hold_its_place():
   count is what catches it."""
   with pytest.raises(ValueError, match="expects 8 fields, got 7"):
     ManifoldPrime.from_definition("DV103|9|A||5|True|5|True|04:00")
+
+
+def test_a_wash_writes_its_aspirates_as_steps_it_owns():
+  """A wash writes its aspirates as steps it owns.
+
+  An aspirate stores a well selection standing alone and none inside a wash, so the two forms are
+  definitions of different lengths and the instrument reads back only the shorter one. Which it is
+  follows from where the step sits, so a wash handed one built plainly has to write it marked.
+  """
+  plain = ManifoldAspirate(positioning=Positioning(z_steps=50))
+  marked = ManifoldAspirate(in_wash=True, positioning=Positioning(z_steps=50))
+  handed = ManifoldWash(cycles=2, aspirate=plain, final_aspirate=plain)
+  assert (
+    handed.to_definition()
+    == ManifoldWash(cycles=2, aspirate=marked, final_aspirate=marked).to_definition()
+  )
+  assert not plain.in_wash
+  again = step_from_definition(handed.to_definition())
+  assert isinstance(again, ManifoldWash)
+  assert again.aspirate.in_wash and again.final_aspirate.in_wash
+
+
+def test_a_strip_wash_writes_both_halves_as_steps_it_owns():
+  """A strip wash writes both halves as steps it owns.
+
+  Unlike a plate wash, a strip wash's dispense selects wells too, so all four of its steps are
+  written marked.
+  """
+  handed = StripWash(
+    cycles=2,
+    dispense=StripDispense(volume=100, positioning=Positioning(z_steps=50)),
+    aspirate=StripAspirate(positioning=Positioning(z_steps=20)),
+  )
+  expected = StripWash(
+    cycles=2,
+    dispense=StripDispense(in_wash=True, volume=100, positioning=Positioning(z_steps=50)),
+    aspirate=StripAspirate(in_wash=True, positioning=Positioning(z_steps=20)),
+  )
+  assert handed.to_definition() == expected.to_definition()
+  again = step_from_definition(handed.to_definition())
+  assert isinstance(again, StripWash)
+  assert again.dispense.in_wash and again.aspirate.in_wash
+
+
+def test_a_1536_wash_writes_its_aspirates_as_steps_it_owns():
+  """A 1536-well wash writes its aspirates as steps it owns.
+
+  Its dispense comes from a syringe, which has no selection to drop, so only the two aspirates
+  change.
+  """
+  plain = ManifoldAspirate(positioning=Positioning(z_steps=42))
+  marked = ManifoldAspirate(in_wash=True, positioning=Positioning(z_steps=42))
+  handed = Wash1536(cycles=2, aspirate=plain, final_aspirate=plain)
+  assert (
+    handed.to_definition()
+    == Wash1536(cycles=2, aspirate=marked, final_aspirate=marked).to_definition()
+  )
+  again = step_from_definition(handed.to_definition())
+  assert isinstance(again, Wash1536)
+  assert again.aspirate.in_wash and again.final_aspirate.in_wash

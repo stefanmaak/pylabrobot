@@ -60,6 +60,11 @@ class StripWash(Step):
   def to_definition(self) -> str:
     """Write the step as the text a protocol file stores.
 
+    All four steps are written as steps a wash owns however they were built, since that is what
+    they are here: one carrying a well selection of its own is a definition of the wrong length,
+    which the instrument cannot read back at all. Both halves of a strip wash select wells, unlike
+    a plate wash, whose dispense has no selection to drop.
+
     Returns:
       The definition, its six parts joined by ``#``.
     """
@@ -71,11 +76,11 @@ class StripWash(Step):
     return _PART_SEPARATOR.join(
       [
         head,
-        self.bottom_wash.to_definition(),
-        self.aspirate.to_definition(),
-        self.dispense.to_definition(),
+        dataclasses.replace(self.bottom_wash, in_wash=True).to_definition(),
+        dataclasses.replace(self.aspirate, in_wash=True).to_definition(),
+        dataclasses.replace(self.dispense, in_wash=True).to_definition(),
         self.shake_soak.to_definition(),
-        self.final_aspirate.to_definition(),
+        dataclasses.replace(self.final_aspirate, in_wash=True).to_definition(),
       ]
     )
 

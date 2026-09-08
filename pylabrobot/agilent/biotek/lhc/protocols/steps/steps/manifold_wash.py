@@ -59,7 +59,10 @@ class ManifoldWash(Step):
   def to_definition(self) -> str:
     """Write the step as the text a protocol file stores.
 
-    The wash's own fields come first, then its five steps, all joined by ``#``.
+    The wash's own fields come first, then its five steps, all joined by ``#``. The aspirates are
+    written as steps a wash owns however they were built, since that is what they are here: one
+    carrying a well selection of its own is a definition of the wrong length, which the instrument
+    cannot read back at all.
 
     Returns:
       The definition.
@@ -72,10 +75,10 @@ class ManifoldWash(Step):
       [
         head,
         self.bottom_wash.to_definition(),
-        self.aspirate.to_definition(),
+        dataclasses.replace(self.aspirate, in_wash=True).to_definition(),
         self.dispense.to_definition(),
         self.shake_soak.to_definition(),
-        self.final_aspirate.to_definition(),
+        dataclasses.replace(self.final_aspirate, in_wash=True).to_definition(),
       ]
     )
 

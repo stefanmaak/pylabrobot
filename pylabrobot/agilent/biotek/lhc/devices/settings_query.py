@@ -174,8 +174,9 @@ async def _read_strip_washer_and_firmware(
 
   The strip washer manifold is only asked about once both the box and its hardware answer yes, so
   an instrument that has neither keeps a manifold of "not fitted" and offers no strip wash steps.
-  The firmware variant is what makes the peristaltic wash steps available, and a firmware that does
-  not report one leaves them unavailable.
+  Whether the random-access dispenser is fitted hangs on the hardware answer alone, which is one
+  answer less than the manifold needs. The firmware variant is what makes the peristaltic wash
+  steps available, and a firmware that does not report one leaves them unavailable.
 
   Args:
     link: The open link to the instrument.
@@ -186,12 +187,13 @@ async def _read_strip_washer_and_firmware(
   """
   manifold = settings.strip_washer_manifold
   single_well = settings.single_well_enabled
-  if await optional_flag(link, CommandNumber.IS_STRIP_WASHER_BOX_CONNECTED) and (
-    await optional_flag(link, CommandNumber.GET_STRIP_WASHER_HW_INSTALLED)
-  ):
+  connected = await optional_flag(link, CommandNumber.IS_STRIP_WASHER_BOX_CONNECTED)
+  hardware = await optional_flag(link, CommandNumber.GET_STRIP_WASHER_HW_INSTALLED)
+  if connected and hardware:
     fitted = await optional_byte(link, CommandNumber.GET_STRIP_WASHER_MANIFOLD_TYPE)
     if fitted is not None:
       manifold = StripWasherManifold(fitted)
+  if hardware:
     single_well = bool(await optional_flag(link, CommandNumber.GET_SINGLE_WELL_DISPENSER_INSTALLED))
   basecode = await optional_byte(link, CommandNumber.GET_WHICH_BASECODE_IS_INSTALLED)
   return InstrumentSettings(

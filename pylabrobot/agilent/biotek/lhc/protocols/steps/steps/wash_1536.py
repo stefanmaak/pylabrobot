@@ -63,7 +63,9 @@ class Wash1536(Step):
     """Write the step as the text a protocol file stores.
 
     The stage flags are not contiguous here: the volume and count used before washing sit between
-    the first two.
+    the first two. The aspirates are written as steps a wash owns however they were built, since
+    that is what they are here: one carrying a well selection of its own is a definition of the
+    wrong length, which the instrument cannot read back at all.
 
     Returns:
       The definition, its five parts joined by ``#``.
@@ -77,10 +79,10 @@ class Wash1536(Step):
     return _PART_SEPARATOR.join(
       [
         head,
-        self.aspirate.to_definition(),
+        dataclasses.replace(self.aspirate, in_wash=True).to_definition(),
         self.dispense.to_definition(),
         self.shake_soak.to_definition(),
-        self.final_aspirate.to_definition(),
+        dataclasses.replace(self.final_aspirate, in_wash=True).to_definition(),
       ]
     )
 
