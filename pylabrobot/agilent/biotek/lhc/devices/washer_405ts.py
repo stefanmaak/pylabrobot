@@ -96,7 +96,6 @@ class Washer405TS:
   """
 
   family: ClassVar[InstrumentFamily] = InstrumentFamily.MODEL_405_TS
-  checked_on_hardware: ClassVar[bool] = False
 
   def __init__(
     self,
@@ -164,12 +163,6 @@ class Washer405TS:
       BiotekError: If the port will not open, nothing answers on it, or the fitted options cannot
         be read.
     """
-    if not self.checked_on_hardware:
-      logger.warning(
-        "the %s driver has not been checked against a real instrument; verify every protocol on "
-        "labware you can afford to lose before trusting it",
-        type(self).__name__,
-      )
     link = self._runtime.link
     await link.setup()
     await handshake.check_communications(link)
