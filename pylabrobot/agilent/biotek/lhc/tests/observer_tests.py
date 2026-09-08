@@ -344,13 +344,13 @@ class TestRunControlWhileAStepRuns(ObserverTestCase):
 
   @staticmethod
   async def stopped(running: asyncio.Task) -> None:
-    """Stop waiting for a step that never finishes.
+    """Stop waiting for a step, whether it was stopped or never finishes.
 
     Args:
       running: The task running it.
     """
     running.cancel()
-    with suppress(asyncio.CancelledError):
+    with suppress(asyncio.CancelledError, BiotekError):
       await running
 
   async def test_a_pause_is_its_own_operation(self):

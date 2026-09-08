@@ -18,6 +18,9 @@ class Command:
     answer_length: How many bytes of the reply are the answer, or 0 to take all of them.
     timeout: How long to wait for the reply, in seconds, or None for the transport's default.
       Commands the instrument answers only once it has finished moving set their own.
+    expects_reply: Whether a reply frame follows the acknowledgement. A command that stops the
+      instrument is acknowledged and then answered by nothing at all, so waiting for a frame would
+      only ever time out.
   """
 
   number: int
@@ -25,6 +28,7 @@ class Command:
   reserved: int = 0
   answer_length: int = 0
   timeout: float | None = None
+  expects_reply: bool = True
 
   def to_bytes(self) -> bytes:
     """Frame the command for sending.

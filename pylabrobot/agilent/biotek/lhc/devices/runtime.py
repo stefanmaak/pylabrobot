@@ -48,6 +48,9 @@ class Runtime:
       finished, in seconds. The first poll of a step that has only just started can still report the
       instrument idle, so this is what stops a step being called finished before it began.
     in_batch: Whether a batch is open, which is what makes the batch context re-entrant.
+    aborting: Whether a stop has been asked for and not yet reported. The instrument reports
+      itself ready once it has stopped and homed, which is indistinguishable from a step that
+      finished, so this is what lets the caller waiting on the step be told it was stopped.
     port: Held for as long as a batch is open, so two callers cannot interleave runs on one
       instrument.
   """
@@ -62,6 +65,7 @@ class Runtime:
   carrier_type: CarrierType | None = None
   settle: float = 0.5
   in_batch: bool = False
+  aborting: bool = False
   port: asyncio.Lock = field(default_factory=asyncio.Lock)
 
   @property
