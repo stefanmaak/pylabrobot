@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Iterable
 
 COLUMNS = 48
 """How many entries a column selection always has, whatever the plate holds."""
@@ -48,6 +49,27 @@ class WellMask:
       ValueError: If a character is not a digit.
     """
     return cls([int(digit) for digit in field_text])
+
+  @classmethod
+  def from_columns(cls, columns: Iterable[int]) -> WellMask:
+    """A selection of the columns to work, counted from one.
+
+    Args:
+      columns: The columns to select. Order does not matter, and a column named twice is selected
+        once. Naming none selects nothing, which is a selection a step accepts.
+
+    Returns:
+      The selection, with every column not named unselected.
+
+    Raises:
+      ValueError: If a column is not between 1 and 48. A column beyond what the plate holds is not
+        an error: the instrument reads as many entries as the format on the carrier has.
+    """
+    chosen = set(columns)
+    beyond = sorted(column for column in chosen if not 1 <= column <= COLUMNS)
+    if beyond:
+      raise ValueError(f"columns must be 1..{COLUMNS}; got {beyond}")
+    return cls([1 if column in chosen else 0 for column in range(1, COLUMNS + 1)])
 
   @classmethod
   def all_columns(cls) -> WellMask:
