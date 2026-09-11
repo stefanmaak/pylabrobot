@@ -15,10 +15,10 @@ from __future__ import annotations
 
 from pylabrobot.agilent.biotek.lhc.devices.execution import run_steps
 from pylabrobot.agilent.biotek.lhc.devices.runtime import Runtime
-from pylabrobot.agilent.biotek.lhc.plate_geometry.plate_record import Head
 from pylabrobot.agilent.biotek.lhc.enums.steps.buffer import Buffer
 from pylabrobot.agilent.biotek.lhc.enums.steps.travel_rate import TravelRate
 from pylabrobot.agilent.biotek.lhc.enums.steps.wash_format import WashFormat
+from pylabrobot.agilent.biotek.lhc.plate_geometry.plate_record import Head
 from pylabrobot.agilent.biotek.lhc.protocols.steps.step_parts.groups import (
   PreDispense,
   SecondaryAspirate,

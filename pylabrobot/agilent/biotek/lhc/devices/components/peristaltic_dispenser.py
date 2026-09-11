@@ -15,11 +15,11 @@ from __future__ import annotations
 
 from pylabrobot.agilent.biotek.lhc.devices.execution import run_steps
 from pylabrobot.agilent.biotek.lhc.devices.runtime import Runtime
-from pylabrobot.agilent.biotek.lhc.plate_geometry.plate_record import Head
 from pylabrobot.agilent.biotek.lhc.enums.steps.cassette_head import CassetteHead
 from pylabrobot.agilent.biotek.lhc.enums.steps.cassette_type import CassetteType
 from pylabrobot.agilent.biotek.lhc.enums.steps.peri_flow_rate import PeriFlowRate
 from pylabrobot.agilent.biotek.lhc.enums.steps.peri_pump import PeriPump
+from pylabrobot.agilent.biotek.lhc.plate_geometry.plate_record import Head
 from pylabrobot.agilent.biotek.lhc.protocols.steps.step_parts.groups import (
   PreDispense,
   RandomAccess,

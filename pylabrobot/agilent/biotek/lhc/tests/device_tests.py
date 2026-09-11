@@ -15,6 +15,7 @@ from pylabrobot.agilent.biotek.lhc.devices.components.peristaltic_dispenser impo
 )
 from pylabrobot.agilent.biotek.lhc.devices.components.syringe_dispenser import SyringeDispenser
 from pylabrobot.agilent.biotek.lhc.devices.components.washer import PlateWasher
+from pylabrobot.agilent.biotek.lhc.devices.handshake import BASECODE_PART_NUMBERS
 from pylabrobot.agilent.biotek.lhc.devices.instrument_settings import InstrumentSettings
 from pylabrobot.agilent.biotek.lhc.enums.instrument.basecode import Basecode
 from pylabrobot.agilent.biotek.lhc.enums.instrument.instrument_family import InstrumentFamily
@@ -24,7 +25,6 @@ from pylabrobot.agilent.biotek.lhc.enums.instrument.strip_washer_manifold import
 from pylabrobot.agilent.biotek.lhc.enums.plates.plate_type import PlateType
 from pylabrobot.agilent.biotek.lhc.enums.steps.step_action import StepAction
 from pylabrobot.agilent.biotek.lhc.enums.steps.step_type import StepType
-from pylabrobot.agilent.biotek.lhc.devices.handshake import BASECODE_PART_NUMBERS
 from pylabrobot.agilent.biotek.lhc.error_handling import (
   SETTINGS_DATA_TOO_OLD,
   WRONG_BASECODE_PART_NUMBER,
