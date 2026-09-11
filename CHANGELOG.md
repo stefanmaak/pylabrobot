@@ -16,10 +16,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - User guide notebook for the MicroSpin (`docs/user_guide/01_material-handling/centrifuge/highres_microspin.ipynb`).
 - `Plate`: optional `stacking_z_height` parameter -- the per-plate vertical pitch when plates are stacked directly on top of each other (`size_z` minus the nesting overlap), mirroring `NestedTipRack.stacking_z_height`. Because it is a physical dimension, plates that differ in it no longer compare equal; `Plate` also now serializes `stacking_z_height` and the pre-existing `plate_type` so both round-trip through `deserialize`/`copy`. (#1110)
 - `ResourceStack`: bare plates stacked in the z direction now nest into one another by their `stacking_z_height` (a stack of `N` identical plates is `size_z + (N - 1) * stacking_z_height` tall, for both `get_size_z()` and child placement). Plates without a `stacking_z_height`, and plates wearing a lid, do not nest, so existing behaviour is unchanged. (#1112)
+- Agilent BioTek 405 TS washer (`pylabrobot.agilent.biotek.lhc.Washer405TS`), MultiFlo (`MultiFlo`) and MultiFlo FX (`MultiFloFX`) dispensers, alongside the EL406 in one shared package: one device model, wire protocol and protocol-file format, with per-model differences expressed as configuration. Each model exposes the capability objects its fitted hardware supports (`PlateWasher`, `SyringeDispenser`, `PeristalticDispenser`) and reads the options the instrument has fitted on `setup()`.
+- `.LHC` protocol files can be read, checked and run (`pylabrobot.agilent.biotek.lhc.Protocol`, `read`, `write`), including comparing the instrument settings a file records against the instrument in front of you (`compare_settings`).
+- Serial transport for these instruments alongside FTDI, chosen by the port string.
+- Strip washing, 1536-well washing and peristaltic wash dispense/aspirate operations, and a public `get_status()` reporting the instrument's run state and activity.
+- User guide notebooks for the 405 TS, EL406, MultiFlo and MultiFlo FX (`docs/user_guide/agilent/`).
 
 ### Fixed
 
 - Imported `unittest.mock` in `pylabrobot/centrifuge/centrifuge_tests.py` (pre-existing bug that prevented the test class from running).
+
+### Changed
+
+- Agilent BioTek EL406 moved from `pylabrobot.agilent.biotek.el406.EL406` to `pylabrobot.agilent.biotek.lhc.EL406`. Its operations take the step objects each operation is defined by (`...protocols.steps.steps`) and the parameter groups they are built from (`...steps.step_parts`) rather than long flat keyword lists -- `wash()` went from 39 keyword arguments to nine. Every step is checked against the settings read at `setup()` before anything moves, and plate geometry is resolved from the PyLabRobot `Plate` resource instead of being passed per command.
+
+### Removed
+
+- `pylabrobot.agilent.biotek.el406`, replaced by `pylabrobot.agilent.biotek.lhc`.
 
 ## 0.2.1
 

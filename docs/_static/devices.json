@@ -137,6 +137,7 @@
     "api": "pylabrobot.agilent.biotek.lhc.EL406",
     "api_version": "v1",
     "code_slug": "agilent/biotek/lhc",
+    "doc_slug": "agilent/el406/hello-world",
     "manager": "https://discuss.pylabrobot.org/u/rickwierenga",
     "oem": "https://www.agilent.com/en/product/cell-analysis/microplate-automation-detection/microplate-washers-dispensers/biotek-el406-washer-dispenser-1623255"
   },
@@ -152,6 +153,7 @@
     "api": "pylabrobot.agilent.biotek.lhc.MultiFlo",
     "api_version": "v1",
     "code_slug": "agilent/biotek/lhc",
+    "doc_slug": "agilent/multiflo/hello-world",
     "manager": "https://discuss.pylabrobot.org/u/rickwierenga",
     "oem": "https://www.agilent.com/en/product/microplate-instrumentation/automated-liquid-dispensing-handling/automated-microplate-dispensers/biotek-multiflo-microplate-dispenser-1623263"
   },
@@ -168,6 +170,7 @@
     "api": "pylabrobot.agilent.biotek.lhc.MultiFloFX",
     "api_version": "v1",
     "code_slug": "agilent/biotek/lhc",
+    "doc_slug": "agilent/multiflofx/hello-world",
     "manager": "https://discuss.pylabrobot.org/u/rickwierenga",
     "oem": "https://www.agilent.com/en/product/microplate-instrumentation/automated-liquid-dispensing-handling/automated-microplate-dispensers/biotek-multiflo-fx-multi-mode-dispenser-1623264"
   },
