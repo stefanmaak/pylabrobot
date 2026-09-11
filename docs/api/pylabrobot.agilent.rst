@@ -59,6 +59,91 @@ One class per model. Each exposes the capability objects its fitted hardware sup
     InstrumentSettings
     SettingsComparison
 
+Steps
+~~~~~
+
+One class per operation the instruments perform, holding everything that operation can be given.
+A capability method takes these where it takes a step, and a protocol file stores them.
+
+.. currentmodule:: pylabrobot.agilent.biotek.lhc.protocols.steps.steps
+
+.. autosummary::
+  :toctree: _autosummary
+  :nosignatures:
+  :recursive:
+
+    ManifoldWash
+    ManifoldDispense
+    ManifoldAspirate
+    ManifoldPrime
+    ManifoldAutoClean
+    Wash1536
+    StripWash
+    StripDispense
+    StripAspirate
+    StripPrime
+    SyringeDispense
+    SyringePrime
+    PeriDispense
+    PeriRandomAccessDispense
+    PeriPrime
+    PeriPurge
+    PeriWashDispense
+    PeriWashAspirate
+    ShakeSoak
+
+.. currentmodule:: pylabrobot.agilent.biotek.lhc.protocols.steps
+
+.. autosummary::
+  :toctree: _autosummary
+  :nosignatures:
+  :recursive:
+
+    Step
+    step_from_definition
+
+Step parts
+~~~~~~~~~~
+
+The groups of parameters the steps above are built from: where in the well a step works, which
+stages of a wash run, and the optional behaviours a step can switch on.
+
+.. currentmodule:: pylabrobot.agilent.biotek.lhc.protocols.steps.step_parts.positioning
+
+.. autosummary::
+  :toctree: _autosummary
+  :nosignatures:
+  :recursive:
+
+    Positioning
+
+.. currentmodule:: pylabrobot.agilent.biotek.lhc.protocols.steps.step_parts.groups
+
+.. autosummary::
+  :toctree: _autosummary
+  :nosignatures:
+  :recursive:
+
+    WashStages
+    Sectors
+    PreDispense
+    SecondaryAspirate
+    VacuumDelay
+    Shake
+    Soak
+    Submerge
+    RandomAccess
+    WellVolumeMap
+
+.. currentmodule:: pylabrobot.agilent.biotek.lhc.protocols.steps.step_parts.masks
+
+.. autosummary::
+  :toctree: _autosummary
+  :nosignatures:
+  :recursive:
+
+    WellMask
+
 .. currentmodule:: pylabrobot.agilent.biotek.lhc.protocols.validation
 
 .. autosummary::

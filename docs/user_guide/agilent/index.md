@@ -5,5 +5,8 @@
 
 405ts/hello-world
 benchcel/hello-world
+el406/hello-world
+multiflo/hello-world
+multiflofx/hello-world
 vspin/index
 ```
