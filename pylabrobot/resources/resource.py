@@ -178,14 +178,19 @@ class Resource(SerializableMixin):
     # need full isolation of mutable metadata values.
     self.metadata: Dict[str, Any] = dict(metadata) if metadata is not None else {}
 
-    self.location: Optional[Coordinate] = None
+    self._location: Optional[Coordinate] = None
     self.parent: Optional[Resource] = None
     self.children: List[Resource] = []
+    # Everything in this tree, by name, kept only by its root. `assign_child_resource` hands the
+    # map to the new root and `unassign_child_resource` hands it back, the only two moments a root
+    # changes. `None` elsewhere means the names are tracked above, not that there are none.
+    self._subtree_resources: Optional[Dict[str, Resource]] = {name: self}
 
     self._will_assign_resource_callbacks: List[WillAssignResourceCallback] = []
     self._did_assign_resource_callbacks: List[DidAssignResourceCallback] = []
     self._will_unassign_resource_callbacks: List[WillUnassignResourceCallback] = []
     self._did_unassign_resource_callbacks: List[DidUnassignResourceCallback] = []
+
     self._resource_state_updated_callbacks: List[ResourceDidUpdateState] = []
 
   def get_size_x(self) -> float:
@@ -235,14 +240,18 @@ class Resource(SerializableMixin):
 
   @name.setter
   def name(self, name: str):
-    """Set the name of this resource.
+    """Refuse the change: a resource's name is how it is identified.
 
-    Will raise a `RuntimeError` if the resource is assigned to another resource.
+    Raises:
+      AttributeError: Always. The name is the resource's identifier - it is unique across the tree,
+        it is what `get_resource` finds a resource by, and it is the key state is serialized under.
+        Anything built from it, such as the wells of a plate, takes it at construction, so a name
+        that changed afterwards would leave those disagreeing with it.
     """
-
-    if self.parent is not None:
-      raise RuntimeError("Cannot change the name of a resource that is assigned.")
-    self._name = name
+    raise AttributeError(
+      f"cannot rename {self._name!r} to {name!r}: a resource's name is its identifier and is fixed "
+      "when it is created. Create the resource with the name you want instead."
+    )
 
   def __eq__(self, other):
     return (
@@ -345,24 +354,39 @@ class Resource(SerializableMixin):
     if self.location is None:
       raise NoLocationError(f"Resource '{self.name}' has no location.")
 
-    rotated_anchor = Coordinate(
-      *matrix_vector_multiply_3x3(
-        self.get_absolute_rotation().get_rotation_matrix(),
-        self.get_anchor(x=x, y=y, z=z).vector(),
-      )
-    )
+    # 1. Collect the chain this resource is positioned through, topmost first
+    chain: List[Resource] = [self]
+    while chain[-1].parent is not None and chain[-1].parent.location is not None:
+      chain.append(chain[-1].parent)
+    chain.reverse()
 
-    if self.parent is None or self.parent.location is None:
-      return self.location + rotated_anchor
-
-    parent_pos = self.parent.get_absolute_location()
-    rotated_location = Coordinate(
-      *matrix_vector_multiply_3x3(
-        self.parent.get_absolute_rotation().get_rotation_matrix(),
-        self.location.vector(),
-      )
+    # 2a. Seed the accumulators at the top of the chain. Ancestors above where the walk stops may
+    # carry no location yet still rotate what hangs from them, so the rotation is taken from the
+    # whole tree rather than from the chain.
+    rotation = chain[0].get_absolute_rotation()
+    matrix = (
+      None if rotation._quaternion == (1.0, 0.0, 0.0, 0.0) else rotation.get_rotation_matrix()
     )
-    return parent_pos + rotated_location + rotated_anchor
+    position = cast(Coordinate, chain[0].location)
+
+    # 2b. Accumulate each child's offset in its parent's frame
+    for parent, child in zip(chain, chain[1:]):
+      anchor, location = parent.get_anchor(), cast(Coordinate, child.location)
+      if matrix is None:
+        position += anchor + location
+      else:
+        position += Coordinate(*matrix_vector_multiply_3x3(matrix, anchor.vector())) + Coordinate(
+          *matrix_vector_multiply_3x3(matrix, location.vector())
+        )
+      if child.rotation._quaternion != (1.0, 0.0, 0.0, 0.0):
+        rotation = rotation + child.rotation
+        matrix = rotation.get_rotation_matrix()
+
+    # 3. Apply the requested anchor
+    anchor = self.get_anchor(x=x, y=y, z=z)
+    if matrix is None:
+      return position + anchor
+    return position + Coordinate(*matrix_vector_multiply_3x3(matrix, anchor.vector()))
 
   def get_location_wrt(
     self, other: Resource, x: str = "l", y: str = "f", z: str = "b"
@@ -445,7 +469,8 @@ class Resource(SerializableMixin):
 
     # Check for unsupported resource assignment operations
     self._check_assignment(resource=resource, reassign=reassign)
-    self.get_root()._check_naming_conflicts(resource=resource)
+    root = self.get_root()
+    arriving = root._check_naming_conflicts(resource=resource)
 
     # Call "will assign" callbacks
     for callback in self._will_assign_resource_callbacks:
@@ -457,6 +482,11 @@ class Resource(SerializableMixin):
     resource.parent = self
     resource.location = location
     self.children.append(resource)
+
+    # What arrived belongs to this tree's root now, and no longer heads a tree of its own, so it
+    # gives up the map it was keeping. Collected by the check above, which walked the same subtree.
+    root._resources().update(arriving)
+    resource._subtree_resources = None
 
     # Register callbacks on the new child resource so that they can be propagated up the tree.
     resource.register_will_assign_resource_callback(self._call_will_assign_resource_callbacks)
@@ -600,17 +630,43 @@ class Resource(SerializableMixin):
       current = current.parent
     return False
 
-  def _check_naming_conflicts(self, resource: Resource):
-    """Recursively check for naming conflicts in the resource tree."""
-    if resource.name == self.name:
-      raise ValueError(f"Resource with name '{resource.name}' already exists in the tree.")
+  def _resources(self) -> Dict[str, Resource]:
+    """The map of names for this tree, which only its root keeps.
 
-    # check if the name of the resource we are currently checking already exists in this subtree
-    for child in self.children:
-      child._check_naming_conflicts(resource)
-    # check if the name of any of the children of the resource already exists in this subtree
-    for child in resource.children:
-      self._check_naming_conflicts(child)
+    Returns:
+      The root's map of every name at or beneath it.
+
+    Raises:
+      RuntimeError: If the root is not holding one, which means a resource stopped heading a tree
+        without handing its map over.
+    """
+    root = self.get_root()
+    if root._subtree_resources is None:
+      raise RuntimeError(f"root '{root.name}' is not holding a map of names")
+    return root._subtree_resources
+
+  def _check_naming_conflicts(self, resource: Resource) -> Dict[str, Resource]:
+    """Raise if anything in `resource`'s subtree is already named in this one.
+
+    Names identify a resource across the whole tree - `get_resource` finds one by name, and
+    `serialize_all_state` keys state by it - so two resources may not share one.
+
+    Args:
+      resource: The resource arriving, with everything beneath it.
+
+    Returns:
+      What arrived, by name, so the caller does not walk the same subtree again to record it.
+
+    Raises:
+      ValueError: If any name in that subtree is already in this tree.
+    """
+    held = self._resources()
+    arriving: Dict[str, Resource] = {}
+    for res in [resource] + resource.get_all_children():
+      if res.name in held:
+        raise ValueError(f"Resource with name '{res.name}' already exists in the tree.")
+      arriving[res.name] = res
+    return arriving
 
   def unassign_child_resource(self, resource: Resource):
     """Unassign a child resource from this resource.
@@ -634,10 +690,18 @@ class Resource(SerializableMixin):
     # Preserve the pose for the event before unassignment clears it.
     previous_location = coordinate_reference(resource.location)
 
+    # The map goes with it: this tree gives up those names and the subtree heads a tree of its
+    # own again, so it takes them back. Read before the tree changes shape.
+    departing = {res.name: res for res in [resource] + resource.get_all_children()}
+    held = self._resources()
+    for name in departing:
+      held.pop(name, None)
+
     # Update the tree structure
     resource.parent = None
     resource.location = None
     self.children.remove(resource)
+    resource._subtree_resources = departing
 
     # Delete callbacks on the child resource so that they are not propagated up the tree.
     resource.deregister_will_assign_resource_callback(self._call_will_assign_resource_callbacks)
@@ -681,16 +745,29 @@ class Resource(SerializableMixin):
       ValueError: If no resource with the given name exists.
     """
 
-    if self.name == name:
-      return self
+    resource = self._resources().get(name)
+    if resource is None:
+      raise ResourceNotFoundError(f"Resource with name '{name}' does not exist.")
+    if not (resource is self or resource.is_in_subtree_of(self)):
+      where = (
+        f"assigned to '{resource.parent.name}'" if resource.parent else "the root of this tree"
+      )
+      raise ResourceNotFoundError(
+        f"'{name}' is not at or beneath '{self.name}'. It is in the same tree, {where}."
+      )
+    return resource
 
-    for child in self.children:
-      try:
-        return child.get_resource(name)
-      except ResourceNotFoundError:
-        pass
+  def has_resource(self, name: str) -> bool:
+    """Whether anything at or beneath this resource carries the given name.
 
-    raise ResourceNotFoundError(f"Resource with name '{name}' does not exist.")
+    Args:
+      name: The name to look for.
+
+    Returns:
+      True when a resource with that name is in this subtree.
+    """
+    resource = self._resources().get(name)
+    return resource is not None and (resource is self or resource.is_in_subtree_of(self))
 
   def find_resources(
     self,
@@ -798,12 +875,27 @@ class Resource(SerializableMixin):
     )
     return results[0] if results else None
 
-  def rotate(self, x: float = 0, y: float = 0, z: float = 0):
-    """Rotate counter-clockwise by the given number of degrees."""
+  @property
+  def location(self) -> Optional[Coordinate]:
+    """Where this resource sits, relative to its parent."""
+    return self._location
 
-    self.rotation.x = (self.rotation.x + x) % 360
-    self.rotation.y = (self.rotation.y + y) % 360
-    self.rotation.z = (self.rotation.z + z) % 360
+  @location.setter
+  def location(self, location: Optional[Coordinate]) -> None:
+    """Record a new position, and notify subscribers.
+
+    Silent when the position does not change, and while the resource is outside a tree, where
+    there is nobody to tell.
+    """
+    changed = location != self._location
+    self._location = location
+    if changed and self.parent is not None:
+      self._state_updated()
+
+  def rotate(self, x: float = 0, y: float = 0, z: float = 0):
+    """Rotate counter-clockwise around the parent-coordinate axes by the given degrees."""
+
+    self.rotation._prepend(Rotation(x=x, y=y, z=z))
     # Rotation is part of the resource's state; notify subscribers (e.g. the
     # Visualizer) so they can re-render.
     self._state_updated()
@@ -829,7 +921,8 @@ class Resource(SerializableMixin):
   def named(self, name: str) -> Self:
     """Return a copy of this resource with the given name."""
     new_resource = self.copy()
-    new_resource.name = name
+    # The copy is new and in no tree, so this finishes building it rather than renaming anything.
+    new_resource._name = name
     return new_resource
 
   def center(self, x: bool = True, y: bool = True, z: bool = False) -> Coordinate:
@@ -1057,12 +1150,15 @@ class Resource(SerializableMixin):
     Use :meth:`pylabrobot.resources.resource.Resource.serialize_all_state` to serialize the state of
     this resource and all children.
 
-    The base implementation includes ``"rotation"`` so that subscribers
-    (e.g. the Visualizer) are notified of orientation changes through the
+    The base implementation includes ``"rotation"`` and ``"location"`` so that subscribers
+    (e.g. the Visualizer) are notified of orientation and position changes through the
     standard state channel. Subclasses overriding this method should merge
     in ``super().serialize_state()``.
     """
-    return {"rotation": self.rotation.serialize()}
+    state: Dict[str, Any] = {"rotation": self.rotation.serialize()}
+    if self._location is not None:
+      state["location"] = self._location.serialize()
+    return state
 
   # Developer note: you probably don't need to override this method. Instead, override
   # `serialize_state`.
@@ -1087,11 +1183,13 @@ class Resource(SerializableMixin):
   def load_state(self, state: Dict[str, Any]) -> None:
     """Load state for this resource only.
 
-    The base implementation reads ``"rotation"`` if present. Subclasses
+    The base implementation reads ``"rotation"`` and ``"location"`` if present. Subclasses
     overriding this method should call ``super().load_state(state)``.
     """
     if "rotation" in state:
       self.rotation = deserialize(state["rotation"])
+    if "location" in state:
+      self.location = deserialize(state["location"])
 
   # Developer note: you probably don't need to override this method. Instead, override `load_state`.
   def load_all_state(self, state: Dict[str, Dict[str, Any]]) -> None:

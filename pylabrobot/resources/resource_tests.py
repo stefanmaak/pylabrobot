@@ -4,7 +4,7 @@ import re
 import unittest
 import unittest.mock
 from collections import OrderedDict
-from typing import Any, Dict
+from typing import Any, Dict, cast
 
 from pylabrobot.legacy.centrifuge.centrifuge import Centrifuge, Loader
 from pylabrobot.legacy.centrifuge.chatterbox import (
@@ -24,6 +24,7 @@ from pylabrobot.resources.plate_adapter import PlateAdapter
 from pylabrobot.resources.resource import Resource
 from pylabrobot.resources.rotation import Rotation
 from pylabrobot.resources.tip import Tip
+from pylabrobot.utils.linalg import matrix_multiply_3x3, matrix_vector_multiply_3x3
 
 
 def _make_test_deck() -> Deck:
@@ -379,6 +380,103 @@ class TestResource(unittest.TestCase):
     self.assertAlmostEqual(r.get_absolute_size_y(), 100)
     self.assertEqual(c.get_absolute_location(), Coordinate(20, 10, 10))
 
+  def test_absolute_location_through_a_rotated_chain(self):
+    parent = Resource("parent", size_x=200, size_y=100, size_z=100, rotation=Rotation(z=90))
+    parent.location = Coordinate(10, 20, 0)
+    child = Resource("child", size_x=20, size_y=20, size_z=20, rotation=Rotation(z=90))
+    parent.assign_child_resource(child, location=Coordinate(30, 0, 0))
+    grandchild = Resource("grandchild", size_x=10, size_y=10, size_z=10)
+    child.assign_child_resource(grandchild, location=Coordinate(5, 0, 0))
+
+    # Each level turns what it carries, so the child's 30 mm along its parent's x lands 30 mm
+    # along the deck's y, and the grandchild's 5 mm comes back on itself through two turns.
+    self.assertEqual(parent.get_absolute_location(), Coordinate(10, 20, 0))
+    self.assertEqual(child.get_absolute_location(), Coordinate(10, 50, 0))
+    self.assertEqual(grandchild.get_absolute_location(), Coordinate(5, 50, 0))
+    self.assertEqual(grandchild.get_absolute_location(x="c", y="c", z="c"), Coordinate(0, 45, 5))
+    self.assertEqual(grandchild.get_absolute_location(x="r", y="b", z="t"), Coordinate(-5, 40, 10))
+
+  def test_absolute_location_matches_level_by_level_composition(self):
+    """Walking the chain must give what composing one level at a time gives."""
+
+    def level_by_level(resource: Resource, x="l", y="f", z="b") -> Coordinate:
+      turned_anchor = Coordinate(
+        *matrix_vector_multiply_3x3(
+          resource.get_absolute_rotation().get_rotation_matrix(),
+          resource.get_anchor(x=x, y=y, z=z).vector(),
+        )
+      )
+      here = cast(Coordinate, resource.location)
+      parent = resource.parent
+      if parent is None or parent.location is None:
+        return here + turned_anchor
+      turned_location = Coordinate(
+        *matrix_vector_multiply_3x3(
+          parent.get_absolute_rotation().get_rotation_matrix(), here.vector()
+        )
+      )
+      return level_by_level(parent) + turned_location + turned_anchor
+
+    for angles in ((0, 0, 0), (0, 0, 90), (0, 0, 37.5), (0, 0, 270)):
+      for hangs_from_a_placeless_parent in (False, True):
+        with self.subTest(angles=angles, hung=hangs_from_a_placeless_parent):
+          top = Resource("top", size_x=200, size_y=100, size_z=100, rotation=Rotation(*angles))
+          top.location = Coordinate(11, 22, 33)
+          if hangs_from_a_placeless_parent:
+            # A resource whose parent carries no location is where the walk stops, but the
+            # rotation still comes from above it.
+            placeless = Resource("placeless", size_x=1, size_y=1, size_z=1, rotation=Rotation(z=90))
+            top.parent = placeless
+            placeless.children.append(top)
+          node = top
+          for level in range(3):
+            child = Resource(
+              f"level_{level}", size_x=20, size_y=10, size_z=5, rotation=Rotation(*angles)
+            )
+            node.assign_child_resource(child, location=Coordinate(7, -3, 2))
+            node = child
+          for anchors in (("l", "f", "b"), ("c", "c", "c"), ("r", "b", "t")):
+            self.assertEqual(node.get_absolute_location(*anchors), level_by_level(node, *anchors))
+
+  def test_rotate_composes_around_fixed_axes(self):
+    resource = Resource("resource", size_x=10, size_y=10, size_z=10, rotation=Rotation(z=90))
+    expected = matrix_multiply_3x3(
+      Rotation(x=90).get_rotation_matrix(),
+      resource.rotation.get_rotation_matrix(),
+    )
+
+    resource.rotate(x=90)
+
+    actual = resource.rotation.get_rotation_matrix()
+    for actual_row, expected_row in zip(actual, expected):
+      for actual_value, expected_value in zip(actual_row, expected_row):
+        self.assertAlmostEqual(actual_value, expected_value)
+
+  def test_rotate_keeps_angles_normalized(self):
+    resource = Resource("resource", size_x=10, size_y=10, size_z=10)
+    rotation = resource.rotation
+
+    resource.rotate(z=270)
+    self.assertIs(resource.rotation, rotation)
+    self.assertEqual(resource.rotation.z, 270)
+
+    resource.rotate(z=90)
+    self.assertEqual(resource.rotation.z, 0)
+
+  def test_absolute_rotation_composes_parent_and_child(self):
+    parent = Resource("parent", size_x=10, size_y=10, size_z=10, rotation=Rotation(x=90))
+    child = Resource("child", size_x=5, size_y=5, size_z=5, rotation=Rotation(z=90))
+    parent.assign_child_resource(child, location=Coordinate.zero())
+    expected = matrix_multiply_3x3(
+      parent.rotation.get_rotation_matrix(),
+      child.rotation.get_rotation_matrix(),
+    )
+
+    actual = child.get_absolute_rotation().get_rotation_matrix()
+    for actual_row, expected_row in zip(actual, expected):
+      for actual_value, expected_value in zip(actual_row, expected_row):
+        self.assertAlmostEqual(actual_value, expected_value)
+
 
 class TestResourceCallback(unittest.TestCase):
   def setUp(self) -> None:
@@ -429,10 +527,20 @@ class TestResourceCallback(unittest.TestCase):
     self.r.assign_child_resource(self.child, location=Coordinate.zero())
     self.child.unassign()
 
-    self.assertEqual(self.child._did_assign_resource_callbacks, [])
-    self.assertEqual(self.child._did_unassign_resource_callbacks, [])
-    self.assertEqual(self.child._will_assign_resource_callbacks, [])
-    self.assertEqual(self.child._will_unassign_resource_callbacks, [])
+    # Its own handlers stay; what must go is the parent's, which is what carried an event up.
+
+    self.assertNotIn(
+      self.r._call_did_assign_resource_callbacks, self.child._did_assign_resource_callbacks
+    )
+    self.assertNotIn(
+      self.r._call_did_unassign_resource_callbacks, self.child._did_unassign_resource_callbacks
+    )
+    self.assertNotIn(
+      self.r._call_will_assign_resource_callbacks, self.child._will_assign_resource_callbacks
+    )
+    self.assertNotIn(
+      self.r._call_will_unassign_resource_callbacks, self.child._will_unassign_resource_callbacks
+    )
 
   def test_did_assign_is_passed_up_the_chain(self):
     mock_function = unittest.mock.Mock()
@@ -1184,3 +1292,73 @@ class TestResourceMetadata(unittest.TestCase):
     self.assertEqual(deck.find_resources(), [deck, plate, trough, waste, well])
     # Non-recursive: self plus direct children only.
     self.assertEqual(deck.find_resources(recursive=False), [deck, plate, trough, waste])
+
+
+class TestNameIndex(unittest.TestCase):
+  """Names are unique across a tree, and the tree remembers which it holds rather than re-reading
+  itself on every assignment. Anything remembered can go stale, so these check it does not."""
+
+  def block(self, name: str) -> Resource:
+    return Resource(name=name, size_x=10, size_y=10, size_z=10)
+
+  def test_a_duplicate_name_is_refused(self):
+    root = self.block("root")
+    root.assign_child_resource(self.block("a"), location=Coordinate.zero())
+    with self.assertRaises(ValueError):
+      root.assign_child_resource(self.block("a"), location=Coordinate.zero())
+
+  def test_a_duplicate_deep_in_the_arriving_subtree_is_refused(self):
+    root = self.block("root")
+    holder = self.block("holder")
+    holder.assign_child_resource(self.block("buried"), location=Coordinate.zero())
+    root.assign_child_resource(holder, location=Coordinate.zero())
+
+    other = self.block("other")
+    other.assign_child_resource(self.block("buried"), location=Coordinate.zero())
+    with self.assertRaises(ValueError):
+      root.assign_child_resource(other, location=Coordinate.zero())
+
+  def test_unassigning_frees_the_name(self):
+    root = self.block("root")
+    plate = self.block("plate")
+    root.assign_child_resource(plate, location=Coordinate.zero())
+    root.unassign_child_resource(plate)
+    root.assign_child_resource(self.block("plate"), location=Coordinate.zero())
+
+  def test_a_subtree_takes_its_names_with_it(self):
+    """The names beneath a resource leave the tree with it, and arrive in whatever tree takes it."""
+    first, second = self.block("first"), self.block("second")
+    holder = self.block("holder")
+    holder.assign_child_resource(self.block("carried"), location=Coordinate.zero())
+    first.assign_child_resource(holder, location=Coordinate.zero())
+
+    # while it is in the first tree, the second knows nothing of what it carries
+    second.assign_child_resource(self.block("carried"), location=Coordinate.zero())
+
+    first.unassign_child_resource(holder)
+    # and now the name it carries collides with the one already there
+    with self.assertRaises(ValueError):
+      second.assign_child_resource(holder, location=Coordinate.zero())
+
+  def test_moving_between_parents_goes_through_the_old_one(self):
+    """A resource is moved by taking it off one parent and putting it on another, in that order.
+
+    Handing it straight to the new parent is refused, because the name is checked while the old
+    parent still holds it. Long-standing behaviour, unrelated to the index, and worth pinning: it is
+    why a plate changing carriers reaches a subscriber as an unassignment and an assignment.
+    """
+    root = self.block("root")
+    left, right = self.block("left"), self.block("right")
+    root.assign_child_resource(left, location=Coordinate.zero())
+    root.assign_child_resource(right, location=Coordinate.zero())
+
+    plate = self.block("plate")
+    left.assign_child_resource(plate, location=Coordinate.zero())
+
+    with self.assertRaises(ValueError):
+      right.assign_child_resource(plate, location=Coordinate.zero())
+
+    left.unassign_child_resource(plate)
+    right.assign_child_resource(plate, location=Coordinate.zero())
+    self.assertIs(plate.parent, right)
+    self.assertEqual(root.get_resource("plate"), plate)

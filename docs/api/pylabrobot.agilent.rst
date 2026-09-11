@@ -195,8 +195,13 @@ BioTek Synergy H1
     SynergyH1
 
 
+.. _vspin-api:
+
 VSpin
 -----
+
+For operation states, plate-transfer coordination, and recovery behavior, see the
+:doc:`VSpin and Access2 state-machine guide </user_guide/agilent/vspin/state-machine>`.
 
 .. currentmodule:: pylabrobot.agilent.vspin
 
@@ -208,3 +213,21 @@ VSpin
     VSpin
     Access2
     Access2Driver
+    ServoStatus
+    Access2Status
+
+
+PlateLoc
+--------
+
+.. currentmodule:: pylabrobot.agilent.plateloc
+
+.. autosummary::
+  :toctree: _autosummary
+  :nosignatures:
+  :recursive:
+
+    PlateLoc
+    PlateLocSerialProfile
+    PlateLocStatus
+    PlateLocError
